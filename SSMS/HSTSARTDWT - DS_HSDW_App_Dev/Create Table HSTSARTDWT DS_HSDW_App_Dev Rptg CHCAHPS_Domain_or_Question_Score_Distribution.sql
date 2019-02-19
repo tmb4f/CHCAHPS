@@ -1,0 +1,24 @@
+USE [DS_HSDW_App_Dev]
+GO
+
+DROP TABLE [Rptg].[CHCAHPS_Domain_or_Question_Score_Distribution]
+GO
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+CREATE TABLE [Rptg].[CHCAHPS_Domain_or_Question_Score_Distribution](
+	[VALUE] [NUMERIC](4, 1) NULL,
+	[DOMAIN_QUESTION] [VARCHAR](100) NULL,
+	[PERCENTILE_RANK] [INT] NULL,
+	[RPT_PRD_BGN] [DATE] NULL,
+	[RPT_PRD_END] [DATE] NULL,
+	[sk_Dim_PG_Question] [INTEGER] NULL,
+	[Load_Dtm] [SMALLDATETIME] NULL
+) ON [PRIMARY]
+GO
+
+
