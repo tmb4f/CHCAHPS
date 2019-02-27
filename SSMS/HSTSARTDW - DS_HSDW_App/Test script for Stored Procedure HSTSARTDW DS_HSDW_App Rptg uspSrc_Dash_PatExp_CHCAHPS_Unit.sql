@@ -7,7 +7,17 @@ GO
 SET QUOTED_IDENTIFIER OFF
 GO
 
---CREATE PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit]
+-- =====================================================================================
+-- Create procedure uspSrc_Dash_PatExp_CHCAHPS_Unit
+-- =====================================================================================
+--IF EXISTS (SELECT 1
+--    FROM INFORMATION_SCHEMA.ROUTINES 
+--    WHERE ROUTINE_SCHEMA='Rptg'
+--    AND ROUTINE_TYPE='PROCEDURE'
+--    AND ROUTINE_NAME='uspSrc_Dash_PatExp_CHCAHPS_Unit')
+--   DROP PROCEDURE Rptg.[uspSrc_Dash_PatExp_CHCAHPS_Unit]
+--GO
+--ALTER PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit]
 --AS
 /**********************************************************************************************************************
 WHAT: Stored procedure for Patient Experience Dashboard - Child HCAHPS (Inpatient) - By Unit
@@ -193,16 +203,6 @@ ORDER BY resp.sk_Fact_Pt_Acct
   -- Create index for temp table #chcahps_resp
   CREATE CLUSTERED INDEX IX_chcahps_resp ON #chcahps_resp ([sk_Fact_Pt_Acct])
 
---SELECT *
---FROM #chcahps_resp
-----WHERE SURVEY_ID = 1229736443
-----WHERE SURVEY_ID = 1701715240
---WHERE sk_Dim_PG_Question = '2384'
---AND VALUE = '8NOR'
-----ORDER BY sk_Dim_PG_Question
---ORDER BY FY
---       , RECDATE
-
 SELECT
      resp.SURVEY_ID
 	,resp.sk_Dim_PG_Question
@@ -248,13 +248,6 @@ ORDER BY resp.SURVEY_ID
   -- Create index for temp table #chcahps_resp_dep
   CREATE CLUSTERED INDEX IX_chcahps_resp_dep ON #chcahps_resp_dep ([SURVEY_ID])
 
---SELECT *
---FROM #chcahps_resp_dep
-----WHERE SURVEY_ID = 1229736443
-----WHERE SURVEY_ID = 1701715240
---WHERE SURVEY_ID IN (1621222355,1679191689)
---ORDER BY SURVEY_ID, sk_Dim_PG_Question
-
 SELECT
      resp.SURVEY_ID
 	,resp.sk_Dim_PG_Question
@@ -277,12 +270,6 @@ ORDER BY UNIT
   -- Create index for temp table #chcahps_resp_unit
   CREATE CLUSTERED INDEX IX_chcahps_resp_unit ON #chcahps_resp_unit ([UNIT])
 
---SELECT *
---FROM #chcahps_resp_unit
-----WHERE SURVEY_ID = 1229736443
---WHERE SURVEY_ID = 1701715240
---ORDER BY sk_Dim_PG_Question
-
 SELECT
      resp.SURVEY_ID
 	,resp.sk_Dim_PG_Question
@@ -294,18 +281,14 @@ SELECT
 	,resp.FY
 	,resp.VALUE
 	,resp.sk_Dim_Clrt_DEPt
-  --  ,CASE resp.UNIT
-	 --  WHEN '8NOR' THEN 419 -- 2/12/2019 Goals for unit 8NOR not defined, default to 8TMP goals
-	 --  ELSE resp.sk_Dim_Clrt_DEPt
-	 --END AS goal_sk_Dim_Clrt_DEPt
+	,resp.sk_Dim_Physcn
+	,resp.RESP_CAT
+	,resp.enc_sk_Dim_Clrt_DEPt
     ,CASE
 	   WHEN resp.UNIT = '8NOR' THEN 419 -- 2/12/2019 Goals for unit 8NOR not defined, default to 8TMP goals
 	   WHEN resp.UNIT IS NULL AND resp.sk_Dim_Clrt_DEPt = 395 THEN 1002 -- 2/13/2019 Goals for UVHE PEDIATRIC ICU surveys without unit documented
 	   ELSE resp.sk_Dim_Clrt_DEPt
 	 END AS goal_sk_Dim_Clrt_DEPt
-	,resp.sk_Dim_Physcn
-	,resp.RESP_CAT
-	,resp.enc_sk_Dim_Clrt_DEPt
     ,resp.UNIT
     ,CASE resp.UNIT
 	   WHEN '7CENTRAL (Closed)' THEN '7CENTRAL'
@@ -328,19 +311,6 @@ ORDER BY der_UNIT
 
   -- Create index for temp table #chcahps_resp_unit_der
   CREATE CLUSTERED INDEX IX_chcahps_resp_unit_der ON #chcahps_resp_unit_der ([der_UNIT])
-
---SELECT *
---FROM #chcahps_resp_unit_der
-----WHERE SURVEY_ID = 1229736443
-----WHERE SURVEY_ID = 1701715240
---WHERE SURVEY_ID IN (1621222355,1679191689)
-----ORDER BY sk_Dim_PG_Question
-----ORDER BY RECDATE
-----       , UNIT
-----       , SURVEY_ID
-----       , sk_Dim_PG_Question
---ORDER BY SURVEY_ID
---       , sk_Dim_PG_Question
 
 SELECT
      resp.SURVEY_ID
@@ -398,13 +368,6 @@ LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwDim_Clrt_DEPt goal_dep
 		    END
 ORDER BY resp.SURVEY_ID
 
---SELECT *
---FROM #chcahps_resp_epic_id
-----WHERE SURVEY_ID = 1229736443
-----WHERE SURVEY_ID = 1701715240
---WHERE SURVEY_ID IN (1621222355,1679191689)
---ORDER BY SURVEY_ID, sk_Dim_PG_Question
-
 SELECT DISTINCT
 	  unittemp.SURVEY_ID
 	 ,unittemp.sk_Fact_Pt_Acct
@@ -451,7 +414,7 @@ SELECT DISTINCT
 	 ,unittemp.Pat_Age_Survey_Recvd
 	 ,unittemp.Pat_Age_Survey_Answer
 	 ,unittemp.Pat_Sex
-INTO #surveys_ch_ip_sl
+	INTO #surveys_ch_ip_sl
 FROM
 (
 SELECT DISTINCT
@@ -690,8 +653,6 @@ SELECT DISTINCT
 	) extd
 		ON RESP.sk_Dim_PG_Question = extd.sk_Dim_PG_Question
 	WHERE ((Resp.PG_DESG IS NULL) OR (Resp.PG_DESG = 'PC'))
-    --AND Resp.SURVEY_ID = 1701715240
-    --AND Resp.SURVEY_ID IN (1621222355,1679191689)
 ) AS unittemp
 	LEFT OUTER JOIN
 	(
@@ -729,114 +690,6 @@ SELECT DISTINCT
 	    ON dept.DEPARTMENT_ID = loc_master.EPIC_DEPARTMENT_ID
     LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc AS goal_loc_master
 	    ON goal_dept.DEPARTMENT_ID = goal_loc_master.EPIC_DEPARTMENT_ID
-
---SELECT *
---FROM #surveys_ch_ip_sl
---WHERE FY >= 2017
-----ORDER BY CLINIC
-----       , FY
-----       , SURVEY_ID
-----	   , sk_Dim_PG_Question
---ORDER BY FY
---       , CLINIC
---       , SURVEY_ID
---	   , sk_Dim_PG_Question
-
---SELECT DISTINCT
---       SERVICE_LINE
---      ,CLINIC
---	  ,FY
---	  ,DOMAIN
---	  ,Domain_Goals
---FROM #surveys_ch_ip_sl
---ORDER BY SERVICE_LINE
---        ,CLINIC
---		,DOMAIN
---		,FY
-
---SELECT DISTINCT
---	   FY
---      ,CLINIC
---FROM #surveys_ch_ip_sl
---WHERE FY >= 2017
---ORDER BY FY
---        ,CLINIC
-
---SELECT DISTINCT
---       SURVEY_ID
---FROM #surveys_ch_ip_sl
---ORDER BY SURVEY_ID
-
---SELECT *
---FROM #surveys_ch_ip_sl
-----WHERE SURVEY_ID = 1229736443
-----WHERE SURVEY_ID = 1701715240
---ORDER BY SURVEY_ID, sk_Dim_PG_Question
-
--- SELECT DISTINCT
---     rec.Fyear_num
---	,surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
---	,surveys_ch_ip_sl.SERVICE_LINE_ID
---	,surveys_ch_ip_sl.SERVICE_LINE
---	,surveys_ch_ip_sl.SUB_SERVICE_LINE
---	,surveys_ch_ip_sl.SURVEY_ID
---	,surveys_ch_ip_sl.UNIT
---	,surveys_ch_ip_sl.CLINIC
---	,surveys_ch_ip_sl.goal_CLINIC
---	,surveys_ch_ip_sl.goal_UNIT
---	,surveys_ch_ip_sl.goals_unit
---FROM
---	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) rec
---LEFT OUTER JOIN
---	(SELECT #surveys_ch_ip_sl.*, units.UNIT AS goals_unit, goals.GOAL
---	 FROM #surveys_ch_ip_sl
---     INNER JOIN
---	     (SELECT DISTINCT
---		      SERVICE_LINE
---	         ,UNIT
---	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
---          WHERE SERVICE_LINE = 'Womens and Childrens') units -- Identify surveys with units that have goals documented by Patient Experience
---	 --ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.CLINIC = units.UNIT
---	 ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = units.UNIT
---     LEFT OUTER JOIN
---	     (SELECT
---		      GOAL_YR
---	         ,SERVICE_LINE
---	         ,UNIT
---	         ,DOMAIN
---	         ,GOAL
---	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
---          WHERE SERVICE_LINE = 'Womens and Childrens') goals
---    --ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.CLINIC = goals.UNIT AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
---    ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = goals.UNIT AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
---	 UNION ALL
---	 SELECT #surveys_ch_ip_sl.*, units.UNIT AS goals_unit,  goals.GOAL
---	 FROM #surveys_ch_ip_sl
---     LEFT OUTER JOIN
---	     (SELECT DISTINCT
---		      SERVICE_LINE
---	         ,UNIT
---	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
---          WHERE SERVICE_LINE = 'Womens and Childrens') units -- Identify surveys with units that do not have goals documented by Patient Experience
---	 --ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.CLINIC = units.UNIT
---	 ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = units.UNIT
---     LEFT OUTER JOIN
---	     (SELECT
---		      GOAL_YR
---	         ,SERVICE_LINE
---	         ,UNIT
---	         ,DOMAIN
---	         ,GOAL
---	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
---          WHERE SERVICE_LINE = 'Womens and Childrens' AND UNIT = 'All Units') goals
---    ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
---	WHERE units.UNIT IS NULL
---	) surveys_ch_ip_sl
---    ON rec.day_date = surveys_ch_ip_sl.RECDATE
---FULL OUTER JOIN
---	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
---    ON dis.day_date = surveys_ch_ip_sl.DISDATE
---ORDER BY rec.Fyear_num, surveys_ch_ip_sl.EPIC_DEPARTMENT_ID, surveys_ch_ip_sl.SURVEY_ID
 
 ------------------------------------------------------------------------------------------
 
@@ -894,7 +747,6 @@ LEFT OUTER JOIN
 	         ,UNIT
 	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
           WHERE SERVICE_LINE = 'Womens and Childrens') units -- Identify surveys with units that have goals documented by Patient Experience
-	 --ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.CLINIC = units.UNIT
 	 ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = units.UNIT
      LEFT OUTER JOIN
 	     (SELECT
@@ -905,7 +757,6 @@ LEFT OUTER JOIN
 	         ,GOAL
 	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
           WHERE SERVICE_LINE = 'Womens and Childrens') goals
-    --ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.CLINIC = goals.UNIT AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
     ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = goals.UNIT AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
 	 UNION ALL
 	 SELECT #surveys_ch_ip_sl.*, goals.GOAL
@@ -916,7 +767,6 @@ LEFT OUTER JOIN
 	         ,UNIT
 	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
           WHERE SERVICE_LINE = 'Womens and Childrens') units -- Identify surveys with units that do not have goals documented by Patient Experience
-	 --ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.CLINIC = units.UNIT
 	 ON #surveys_ch_ip_sl.SERVICE_LINE = units.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = units.UNIT
      LEFT OUTER JOIN
 	     (SELECT
@@ -935,17 +785,6 @@ FULL OUTER JOIN
 	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
     ON dis.day_date = surveys_ch_ip_sl.DISDATE
 ORDER BY Event_Date, surveys_ch_ip_sl.SURVEY_ID, surveys_ch_ip_sl.sk_Dim_PG_Question
-
---SELECT *
---FROM #surveys_ch_ip2_sl
-----WHERE SURVEY_ID = 1229736443
-----WHERE SURVEY_ID = 1701715240
-----WHERE Recvd_Date >= '1/1/2017 00:00'
-----ORDER BY sk_Dim_PG_Question
---ORDER BY Recvd_Date
---       , CLINIC
---       , SURVEY_ID
---	   , sk_Dim_PG_Question
 
 -------------------------------------------------------------------------------------------------------------------------------------
 -- SELF UNION TO ADD AN "All Units" UNIT
@@ -1073,19 +912,29 @@ UNION ALL
   INTO #CHCAHPS_Unit
   FROM #surveys_ch_ip3_sl
 
-  SELECT *
+  --SELECT *
+ -- SELECT DISTINCT
+	--#CHCAHPS_Unit.CLINIC
+ -- , EPIC_DEPARTMENT_ID
+ -- --, UNIT
+  SELECT DISTINCT
+	#CHCAHPS_Unit.DOMAIN
+  , sk_Dim_PG_Question
+  , QUESTION_TEXT_ALIAS
   FROM #CHCAHPS_Unit
   --WHERE #CHCAHPS_Unit.SURVEY_ID IS NOT NULL
+  --WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
+  WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
   --AND VARNAME = 'CH_48'
   --AND Domain_Goals = 'Rate Hospital'
   --ORDER BY SERVICE_LINE
   --        ,CLINIC
 		--  ,SURVEY_ID
 		--  ,Event_Date
-  ORDER BY CLINIC
-          ,SERVICE_LINE
-		  ,SURVEY_ID
-		  ,Event_Date
+  --ORDER BY CLINIC
+  --        ,SERVICE_LINE
+		--  ,SURVEY_ID
+		--  ,Event_Date
   --ORDER BY SURVEY_ID
 		--  ,Event_Date
   --ORDER BY CLINIC
@@ -1094,6 +943,9 @@ UNION ALL
   --ORDER BY Event_Date
   --        ,CLINIC
 		--  ,SURVEY_ID
+  --ORDER BY CLINIC
+  ORDER BY DOMAIN
+         , sk_Dim_PG_Question
 
   --SELECT DISTINCT
   --  DOMAIN
