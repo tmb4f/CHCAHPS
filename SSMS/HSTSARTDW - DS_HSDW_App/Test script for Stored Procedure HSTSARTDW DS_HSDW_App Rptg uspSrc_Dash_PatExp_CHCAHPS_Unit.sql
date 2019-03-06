@@ -53,6 +53,9 @@ MODS: 	4/17/2018 - Created procedure
 	   12/14/2018 - Correct issue with assignment of '7N ACUTE' surveys to an Epic Department Id
 	   12/18/2018 - Include surveys where service type value is NULL
 	   02/13/2019 - Add logic for assigning goals to survey locations
+	   03/06/2019 - Remove responses for question "Before your child left the hospital, did a provider tell you that your
+	                child should take any new medicine that he or she had not been taking when this hospital stay began?;
+					Set to null goals equal to 0.0
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
@@ -195,7 +198,7 @@ WHERE sk_Dim_PG_Question IN
 		'2143', -- CH_43
 		'2148', -- CH_46CL
 		'2150', -- CH_47CL
-		'2134', -- CH_38
+		--'2134', -- CH_38	3/6/2019 TMB Exclude responses for questiom "Provider tell child take new meds"
 		'2384'  -- UNIT
 	)
 ORDER BY resp.sk_Fact_Pt_Acct
@@ -696,6 +699,13 @@ SELECT DISTINCT
 --ORDER BY sk_Dim_PG_Question
 --       , RECDATE
 
+--SELECT DISTINCT
+--	sk_Dim_PG_Question
+--  , DOMAIN
+--  , Domain_Goals
+--FROM #surveys_ch_ip_sl
+--ORDER BY sk_Dim_PG_Question
+
 ------------------------------------------------------------------------------------------
 
 --- JOIN TO DIM_DATE
@@ -759,7 +769,11 @@ LEFT OUTER JOIN
 	         ,SERVICE_LINE
 	         ,UNIT
 	         ,DOMAIN
-	         ,GOAL
+	         --,GOAL
+	         ,CASE
+	            WHEN GOAL = 0.0 THEN CAST(NULL AS DECIMAL(4,3))
+	            ELSE GOAL
+	          END AS GOAL
 	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
           WHERE SERVICE_LINE = 'Womens and Childrens') goals
     ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.goal_CLINIC = goals.UNIT AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
@@ -779,7 +793,11 @@ LEFT OUTER JOIN
 	         ,SERVICE_LINE
 	         ,UNIT
 	         ,DOMAIN
-	         ,GOAL
+	         --,GOAL
+	         ,CASE
+	            WHEN GOAL = 0.0 THEN CAST(NULL AS DECIMAL(4,3))
+	            ELSE GOAL
+	          END AS GOAL
 	      FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
           WHERE SERVICE_LINE = 'Womens and Childrens' AND UNIT = 'All Units') goals
     ON #surveys_ch_ip_sl.FY = goals.GOAL_YR AND #surveys_ch_ip_sl.SERVICE_LINE = goals.SERVICE_LINE AND #surveys_ch_ip_sl.Domain_Goals = goals.DOMAIN
@@ -850,7 +868,12 @@ UNION ALL
 		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
 	     ON dis.day_date = #surveys_ch_ip_sl.DISDATE
 	 LEFT OUTER JOIN
-		 (SELECT *
+		 (SELECT GOAL_YR
+		        ,DOMAIN
+	            ,CASE
+	               WHEN GOAL = 0.0 THEN CAST(NULL AS DECIMAL(4,3))
+	               ELSE GOAL
+	             END AS GOAL
 		  FROM DS_HSDW_App.Rptg.CHCAHPS_Goals
 		  WHERE SERVICE_LINE = 'Womens and Childrens' AND UNIT = 'All Units'
 		 ) goals  -- CHANGE BASED ON GOALS FROM BUSH - CREATE NEW CHCAHPS_Goals
@@ -917,25 +940,30 @@ UNION ALL
   INTO #CHCAHPS_Unit
   FROM #surveys_ch_ip3_sl
 
-  --SELECT *
+  SELECT *
  -- SELECT DISTINCT
 	--#CHCAHPS_Unit.CLINIC
  -- , EPIC_DEPARTMENT_ID
  -- --, UNIT
-  SELECT DISTINCT
-	#CHCAHPS_Unit.DOMAIN
-  , sk_Dim_PG_Question
-  , QUESTION_TEXT_ALIAS
+ -- SELECT DISTINCT
+	--#CHCAHPS_Unit.DOMAIN
+ -- , sk_Dim_PG_Question
+ -- , QUESTION_TEXT_ALIAS
+ -- SELECT DISTINCT
+	--DOMAIN
+ -- , Domain_Goals
+ -- , sk_Dim_PG_Question
+ -- , QUESTION_TEXT_ALIAS
   FROM #CHCAHPS_Unit
   --WHERE #CHCAHPS_Unit.SURVEY_ID IS NOT NULL
   --WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
-  WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
+  --WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
   --AND VARNAME = 'CH_48'
   --AND Domain_Goals = 'Rate Hospital'
-  --ORDER BY SERVICE_LINE
-  --        ,CLINIC
-		--  ,SURVEY_ID
-		--  ,Event_Date
+  ORDER BY SERVICE_LINE
+          ,CLINIC
+		  ,SURVEY_ID
+		  ,Event_Date
   --ORDER BY CLINIC
   --        ,SERVICE_LINE
 		--  ,SURVEY_ID
@@ -949,8 +977,8 @@ UNION ALL
   --        ,CLINIC
 		--  ,SURVEY_ID
   --ORDER BY CLINIC
-  ORDER BY DOMAIN
-         , sk_Dim_PG_Question
+  --ORDER BY DOMAIN
+  --       , sk_Dim_PG_Question
 
   --SELECT DISTINCT
   --  DOMAIN
