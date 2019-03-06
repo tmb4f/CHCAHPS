@@ -691,6 +691,11 @@ SELECT DISTINCT
     LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc AS goal_loc_master
 	    ON goal_dept.DEPARTMENT_ID = goal_loc_master.EPIC_DEPARTMENT_ID
 
+--SELECT *
+--FROM #surveys_ch_ip_sl
+--ORDER BY sk_Dim_PG_Question
+--       , RECDATE
+
 ------------------------------------------------------------------------------------------
 
 --- JOIN TO DIM_DATE
