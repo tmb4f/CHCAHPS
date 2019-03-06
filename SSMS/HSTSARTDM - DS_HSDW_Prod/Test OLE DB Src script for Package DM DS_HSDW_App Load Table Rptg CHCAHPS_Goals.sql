@@ -304,9 +304,9 @@ ORDER BY GOAL_YR
        , UNIT
 	   , DOMAIN
 
-SELECT DISTINCT
-	GOAL_YR
-  , UNIT
-FROM @RptgTbl
-ORDER BY GOAL_YR
-       , UNIT
+--SELECT DISTINCT
+--	GOAL_YR
+--  , UNIT
+--FROM @RptgTbl
+--ORDER BY GOAL_YR
+--       , UNIT
