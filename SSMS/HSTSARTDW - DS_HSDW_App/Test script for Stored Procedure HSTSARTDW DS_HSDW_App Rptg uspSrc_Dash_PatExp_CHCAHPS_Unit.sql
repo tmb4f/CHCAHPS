@@ -940,7 +940,7 @@ UNION ALL
   INTO #CHCAHPS_Unit
   FROM #surveys_ch_ip3_sl
 
-  SELECT *
+  --SELECT *
  -- SELECT DISTINCT
 	--#CHCAHPS_Unit.CLINIC
  -- , EPIC_DEPARTMENT_ID
@@ -949,21 +949,21 @@ UNION ALL
 	--#CHCAHPS_Unit.DOMAIN
  -- , sk_Dim_PG_Question
  -- , QUESTION_TEXT_ALIAS
- -- SELECT DISTINCT
-	--DOMAIN
- -- , Domain_Goals
- -- , sk_Dim_PG_Question
- -- , QUESTION_TEXT_ALIAS
+  SELECT DISTINCT
+	DOMAIN
+  , Domain_Goals
+  , sk_Dim_PG_Question
+  , QUESTION_TEXT_ALIAS
   FROM #CHCAHPS_Unit
   --WHERE #CHCAHPS_Unit.SURVEY_ID IS NOT NULL
   --WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
   --WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
   --AND VARNAME = 'CH_48'
   --AND Domain_Goals = 'Rate Hospital'
-  ORDER BY SERVICE_LINE
-          ,CLINIC
-		  ,SURVEY_ID
-		  ,Event_Date
+  --ORDER BY SERVICE_LINE
+  --        ,CLINIC
+		--  ,SURVEY_ID
+		--  ,Event_Date
   --ORDER BY CLINIC
   --        ,SERVICE_LINE
 		--  ,SURVEY_ID
@@ -977,8 +977,8 @@ UNION ALL
   --        ,CLINIC
 		--  ,SURVEY_ID
   --ORDER BY CLINIC
-  --ORDER BY DOMAIN
-  --       , sk_Dim_PG_Question
+  ORDER BY DOMAIN
+         , sk_Dim_PG_Question
 
   --SELECT DISTINCT
   --  DOMAIN
