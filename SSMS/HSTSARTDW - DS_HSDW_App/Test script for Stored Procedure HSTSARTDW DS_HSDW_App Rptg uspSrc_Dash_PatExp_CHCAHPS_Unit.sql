@@ -949,17 +949,52 @@ UNION ALL
 	--#CHCAHPS_Unit.DOMAIN
  -- , sk_Dim_PG_Question
  -- , QUESTION_TEXT_ALIAS
-  SELECT DISTINCT
-	DOMAIN
-  , Domain_Goals
-  , sk_Dim_PG_Question
+ -- SELECT DISTINCT
+	--DOMAIN
+ -- , Domain_Goals
+ -- , sk_Dim_PG_Question
+ -- , QUESTION_TEXT_ALIAS
+  SELECT
+    CLINIC
+  --, sk_Dim_PG_Question
+  --, DOMAIN
+  --, Domain_Goals
   , QUESTION_TEXT_ALIAS
+  --, TOP_BOX
+  --, COUNT(*) AS TOP_BOX_COUNT
+  , [VALUE]
+  , COUNT(*) AS VALUE_COUNT
   FROM #CHCAHPS_Unit
   --WHERE #CHCAHPS_Unit.SURVEY_ID IS NOT NULL
   --WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
   --WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
+  WHERE Discharge_Date >= '7/1/2018 00:00 AM'
   --AND VARNAME = 'CH_48'
   --AND Domain_Goals = 'Rate Hospital'
+  AND sk_Dim_PG_Question IN
+	( -- 1-5 scale questions
+		'2204', -- G10
+		'2205', -- G33
+		--'2208', -- G9
+		--'2212', -- I35
+		--'2213', -- I4
+		--'2214', -- I49
+		--'2215', -- I4PR
+		--'2217', -- I50
+		--'2326', -- M2
+		--'2327', -- M2PR
+		--'2330', -- M8
+		'2345'  -- O2
+	)
+  AND CLINIC IN ('UVHE PICU 7NORTH [10243100]','UVHE PEDIATRIC ICU [10243043]')
+  GROUP BY
+    CLINIC
+  --, sk_Dim_PG_Question
+  --, DOMAIN
+  --, Domain_Goals
+  , QUESTION_TEXT_ALIAS
+  --, TOP_BOX
+  , [VALUE]
   --ORDER BY SERVICE_LINE
   --        ,CLINIC
 		--  ,SURVEY_ID
@@ -977,8 +1012,16 @@ UNION ALL
   --        ,CLINIC
 		--  ,SURVEY_ID
   --ORDER BY CLINIC
-  ORDER BY DOMAIN
-         , sk_Dim_PG_Question
+  --ORDER BY DOMAIN
+  --       , sk_Dim_PG_Question
+  ORDER BY
+    CLINIC
+  --, sk_Dim_PG_Question
+  --, DOMAIN
+  --, Domain_Goals
+  , QUESTION_TEXT_ALIAS
+  --, TOP_BOX
+  , [VALUE]
 
   --SELECT DISTINCT
   --  DOMAIN
