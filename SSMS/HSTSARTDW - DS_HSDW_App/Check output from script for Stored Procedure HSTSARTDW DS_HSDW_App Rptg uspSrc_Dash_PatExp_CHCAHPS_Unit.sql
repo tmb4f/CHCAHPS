@@ -201,12 +201,20 @@ WHERE sk_Dim_PG_Question IN
       '2384'  -- UNIT,Unit,NULL,NULL
     )
 */
+/*
 WHERE sk_Dim_PG_Question IN
     ( -- sk_Dim_PG_Question, VARNAME, QUESTION_TEXT, DOMAIN, QUESTION_TEXT_ALIAS
       '2092', -- AGE,Patient's Age,NULL,NULL
       '2111', -- CH_21,"Things that a family might know best about a child include how the child usually acts, what makes the child comfortable, and how to calm the child's fears. During this hospital stay, did providers ask you about these types of things?",Help Child Feel Comfortab,Provider ask thing family know best
       '2112', -- CH_22,"During this hospital stay, how often did providers talk with and act toward your child in a way that was right for your child's age?",Help Child Feel Comfortab,Providers act appropriate child age
       '2131', -- CH_35,"Hospitals can have things like toys, books, mobiles, and games for children from newborns to teenagers. During this hospital stay, did the hospital have things available for your child that were right for your child's age?",Help Child Feel Comfortab,Things available right child's age
+      '2384'  -- UNIT,Unit,NULL,NULL
+    )
+*/
+WHERE sk_Dim_PG_Question IN
+    ( -- sk_Dim_PG_Question, VARNAME, QUESTION_TEXT, DOMAIN, QUESTION_TEXT_ALIAS
+      '2092', -- AGE,Patient's Age,NULL,NULL
+      '2151', -- CH_48,"Using any number from 0 to 10, where 0 is the worst hospital possible and 10 is the best hospital possible, what number would you use to rate this hospital during your child's stay?",Global Rating Item,Rate hospital 0-10
       '2384'  -- UNIT,Unit,NULL,NULL
     )
 AND DATEDIFF(dd,resp.DISDATE,CAST(GETDATE() AS DATE)) <= 366
@@ -703,7 +711,7 @@ SELECT DISTINCT
     LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc AS goal_loc_master
 	    ON goal_dept.DEPARTMENT_ID = goal_loc_master.EPIC_DEPARTMENT_ID
 
-WHERE dept.DEPARTMENT_ID = 10243043
+--WHERE dept.DEPARTMENT_ID = 10243043
 
 ------------------------------------------------------------------------------------------
 
@@ -1044,23 +1052,33 @@ UNION ALL
   --        ,DOMAIN
   --        ,Domain_Goals
 
+ --SELECT
+ --   CLINIC
+ --  ,[DOMAIN]
+ --  ,[sk_Dim_PG_Question]
+ --  , QUESTION_TEXT_ALIAS
+ --  ,SUM([TOP_BOX]) AS TOP_BOX
+ --  ,SUM([VAL_COUNT]) AS VAL_COUNT
+ -- INTO #CHCAHPS_Unit
+ -- FROM #surveys_ch_ip3_sl
+ -- GROUP BY CLINIC
+ --        , DOMAIN
+ --        , sk_Dim_PG_Question
+ --        , QUESTION_TEXT_ALIAS
+
  SELECT
     CLINIC
+   ,Discharge_Date
    ,[DOMAIN]
    ,[sk_Dim_PG_Question]
    , QUESTION_TEXT_ALIAS
-   ,SUM([TOP_BOX]) AS TOP_BOX
-   ,SUM([VAL_COUNT]) AS VAL_COUNT
   INTO #CHCAHPS_Unit
   FROM #surveys_ch_ip3_sl
-  GROUP BY CLINIC
-         , DOMAIN
-         , sk_Dim_PG_Question
-         , QUESTION_TEXT_ALIAS
 
  SELECT *
  FROM #CHCAHPS_Unit
  ORDER BY CLINIC
+        ,Discharge_Date
         , DOMAIN
 		, sk_Dim_PG_Question
         , QUESTION_TEXT_ALIAS
