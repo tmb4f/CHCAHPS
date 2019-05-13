@@ -215,6 +215,7 @@ WHERE sk_Dim_PG_Question IN
     ( -- sk_Dim_PG_Question, VARNAME, QUESTION_TEXT, DOMAIN, QUESTION_TEXT_ALIAS
       '2092', -- AGE,Patient's Age,NULL,NULL
       '2151', -- CH_48,"Using any number from 0 to 10, where 0 is the worst hospital possible and 10 is the best hospital possible, what number would you use to rate this hospital during your child's stay?",Global Rating Item,Rate hospital 0-10
+      '2152', -- CH_49,Would you recommend this hospital to your friends and family?,Global Rating Item,Recommend the hospital
       '2384'  -- UNIT,Unit,NULL,NULL
     )
 AND DATEDIFF(dd,resp.DISDATE,CAST(GETDATE() AS DATE)) <= 366
