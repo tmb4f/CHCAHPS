@@ -56,6 +56,7 @@ MODS: 	4/17/2018 - Created procedure
 	   03/06/2019 - Remove responses for question "Before your child left the hospital, did a provider tell you that your
 	                child should take any new medicine that he or she had not been taking when this hospital stay began?;
 					Set to null goals equal to 0.0
+	   05/20/2019 - Include QUESTION_TEXT in extract
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
@@ -408,6 +409,7 @@ SELECT DISTINCT
 	 ,unittemp.VARNAME
 	 ,unittemp.Svc_Cde
 	 ,unittemp.sk_Dim_PG_Question
+	 ,unittemp.QUESTION_TEXT
 	 ,unittemp.QUESTION_TEXT_ALIAS
 	 ,unittemp.MRN_int
 	 ,unittemp.NPINumber
@@ -694,18 +696,6 @@ SELECT DISTINCT
     LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc AS goal_loc_master
 	    ON goal_dept.DEPARTMENT_ID = goal_loc_master.EPIC_DEPARTMENT_ID
 
---SELECT *
---FROM #surveys_ch_ip_sl
---ORDER BY sk_Dim_PG_Question
---       , RECDATE
-
---SELECT DISTINCT
---	sk_Dim_PG_Question
---  , DOMAIN
---  , Domain_Goals
---FROM #surveys_ch_ip_sl
---ORDER BY sk_Dim_PG_Question
-
 ------------------------------------------------------------------------------------------
 
 --- JOIN TO DIM_DATE
@@ -719,6 +709,7 @@ SELECT DISTINCT
 	,dis.day_date AS Event_Date_Disch
 	,surveys_ch_ip_sl.sk_Dim_PG_Question
 	,surveys_ch_ip_sl.VARNAME
+	,surveys_ch_ip_sl.QUESTION_TEXT
 	,surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
 	,surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
 	,surveys_ch_ip_sl.SERVICE_LINE_ID
@@ -769,7 +760,6 @@ LEFT OUTER JOIN
 	         ,SERVICE_LINE
 	         ,UNIT
 	         ,DOMAIN
-	         --,GOAL
 	         ,CASE
 	            WHEN GOAL = 0.0 THEN CAST(NULL AS DECIMAL(4,3))
 	            ELSE GOAL
@@ -793,7 +783,6 @@ LEFT OUTER JOIN
 	         ,SERVICE_LINE
 	         ,UNIT
 	         ,DOMAIN
-	         --,GOAL
 	         ,CASE
 	            WHEN GOAL = 0.0 THEN CAST(NULL AS DECIMAL(4,3))
 	            ELSE GOAL
@@ -828,6 +817,7 @@ UNION ALL
 		,dis.day_date AS Event_Date_Disch
 		,#surveys_ch_ip_sl.sk_Dim_PG_Question
 		,#surveys_ch_ip_sl.VARNAME
+		,#surveys_ch_ip_sl.QUESTION_TEXT
 		,#surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
 	    ,#surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
 	    ,#surveys_ch_ip_sl.SERVICE_LINE_ID
@@ -911,6 +901,7 @@ UNION ALL
    ,[Event_Date_Disch]
    ,[sk_Dim_PG_Question]
    ,[VARNAME]
+   ,[QUESTION_TEXT]
    ,[QUESTION_TEXT_ALIAS]
    ,[DOMAIN]
    ,[Domain_Goals]
@@ -940,7 +931,7 @@ UNION ALL
   INTO #CHCAHPS_Unit
   FROM #surveys_ch_ip3_sl
 
-  --SELECT *
+  SELECT *
  -- SELECT DISTINCT
 	--#CHCAHPS_Unit.CLINIC
  -- , EPIC_DEPARTMENT_ID
@@ -954,47 +945,47 @@ UNION ALL
  -- , Domain_Goals
  -- , sk_Dim_PG_Question
  -- , QUESTION_TEXT_ALIAS
-  SELECT
-    CLINIC
+  --SELECT
+  --  CLINIC
   --, sk_Dim_PG_Question
   --, DOMAIN
   --, Domain_Goals
-  , QUESTION_TEXT_ALIAS
+  --, QUESTION_TEXT_ALIAS
   --, TOP_BOX
   --, COUNT(*) AS TOP_BOX_COUNT
-  , [VALUE]
-  , COUNT(*) AS VALUE_COUNT
+  --, [VALUE]
+  --, COUNT(*) AS VALUE_COUNT
   FROM #CHCAHPS_Unit
   --WHERE #CHCAHPS_Unit.SURVEY_ID IS NOT NULL
   --WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
   --WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
-  WHERE Discharge_Date >= '7/1/2018 00:00 AM'
+  --WHERE Discharge_Date >= '7/1/2018 00:00 AM'
   --AND VARNAME = 'CH_48'
   --AND Domain_Goals = 'Rate Hospital'
-  AND sk_Dim_PG_Question IN
-	( -- 1-5 scale questions
-		'2204', -- G10
-		'2205', -- G33
-		--'2208', -- G9
-		--'2212', -- I35
-		--'2213', -- I4
-		--'2214', -- I49
-		--'2215', -- I4PR
-		--'2217', -- I50
-		--'2326', -- M2
-		--'2327', -- M2PR
-		--'2330', -- M8
-		'2345'  -- O2
-	)
-  AND CLINIC IN ('UVHE PICU 7NORTH [10243100]','UVHE PEDIATRIC ICU [10243043]')
-  GROUP BY
-    CLINIC
+ -- AND sk_Dim_PG_Question IN
+	--( -- 1-5 scale questions
+	--	'2204', -- G10
+	--	'2205', -- G33
+	--	--'2208', -- G9
+	--	--'2212', -- I35
+	--	--'2213', -- I4
+	--	--'2214', -- I49
+	--	--'2215', -- I4PR
+	--	--'2217', -- I50
+	--	--'2326', -- M2
+	--	--'2327', -- M2PR
+	--	--'2330', -- M8
+	--	'2345'  -- O2
+	--)
+  --AND CLINIC IN ('UVHE PICU 7NORTH [10243100]','UVHE PEDIATRIC ICU [10243043]')
+  --GROUP BY
+  --  CLINIC
   --, sk_Dim_PG_Question
   --, DOMAIN
   --, Domain_Goals
-  , QUESTION_TEXT_ALIAS
+  --, QUESTION_TEXT_ALIAS
   --, TOP_BOX
-  , [VALUE]
+  --, [VALUE]
   --ORDER BY SERVICE_LINE
   --        ,CLINIC
 		--  ,SURVEY_ID

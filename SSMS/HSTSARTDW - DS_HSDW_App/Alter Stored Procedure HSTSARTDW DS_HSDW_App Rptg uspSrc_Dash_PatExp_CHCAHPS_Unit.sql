@@ -56,6 +56,7 @@ MODS: 	4/17/2018 - Created procedure
 	   03/06/2019 - Remove responses for question "Before your child left the hospital, did a provider tell you that your
 	                child should take any new medicine that he or she had not been taking when this hospital stay began?;
 					Set to null goals equal to 0.0
+	   05/20/2019 - Include QUESTION_TEXT in extract
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
@@ -378,6 +379,7 @@ SELECT DISTINCT
 	 ,unittemp.VARNAME
 	 ,unittemp.Svc_Cde
 	 ,unittemp.sk_Dim_PG_Question
+	 ,unittemp.QUESTION_TEXT
 	 ,unittemp.QUESTION_TEXT_ALIAS
 	 ,unittemp.MRN_int
 	 ,unittemp.NPINumber
@@ -677,6 +679,7 @@ SELECT DISTINCT
 	,dis.day_date AS Event_Date_Disch
 	,surveys_ch_ip_sl.sk_Dim_PG_Question
 	,surveys_ch_ip_sl.VARNAME
+	,surveys_ch_ip_sl.QUESTION_TEXT
 	,surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
 	,surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
 	,surveys_ch_ip_sl.SERVICE_LINE_ID
@@ -784,6 +787,7 @@ UNION ALL
 		,dis.day_date AS Event_Date_Disch
 		,#surveys_ch_ip_sl.sk_Dim_PG_Question
 		,#surveys_ch_ip_sl.VARNAME
+		,#surveys_ch_ip_sl.QUESTION_TEXT
 		,#surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
 	    ,#surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
 	    ,#surveys_ch_ip_sl.SERVICE_LINE_ID
@@ -867,6 +871,7 @@ UNION ALL
    ,[Event_Date_Disch]
    ,[sk_Dim_PG_Question]
    ,[VARNAME]
+   ,[QUESTION_TEXT]
    ,[QUESTION_TEXT_ALIAS]
    ,[DOMAIN]
    ,[Domain_Goals]
