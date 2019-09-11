@@ -97,6 +97,8 @@ DECLARE @currdate AS DATE;
 DECLARE @startdate AS DATE;
 DECLARE @enddate AS DATE;
 
+SET @startdate = '5/1/2019'
+SET @enddate = '5/31/2019'
 
     SET @currdate=CAST(GETDATE() AS DATE);
 
@@ -957,10 +959,10 @@ UNION ALL
   --, COUNT(*) AS VALUE_COUNT
   FROM #CHCAHPS_Unit
   --WHERE #CHCAHPS_Unit.SURVEY_ID IS NOT NULL
-  --WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
+  WHERE #CHCAHPS_Unit.CLINIC IS NOT NULL AND #CHCAHPS_Unit.CLINIC <> 'All Units'
   --WHERE #CHCAHPS_Unit.DOMAIN IS NOT NULL
   --WHERE Discharge_Date >= '7/1/2018 00:00 AM'
-  --AND VARNAME = 'CH_48'
+  AND VARNAME = 'CH_48'
   --AND Domain_Goals = 'Rate Hospital'
  -- AND sk_Dim_PG_Question IN
 	--( -- 1-5 scale questions
@@ -1005,14 +1007,15 @@ UNION ALL
   --ORDER BY CLINIC
   --ORDER BY DOMAIN
   --       , sk_Dim_PG_Question
-  ORDER BY
-    CLINIC
-  --, sk_Dim_PG_Question
-  --, DOMAIN
-  --, Domain_Goals
-  , QUESTION_TEXT_ALIAS
-  --, TOP_BOX
-  , [VALUE]
+  --ORDER BY
+  --  CLINIC
+  ----, sk_Dim_PG_Question
+  ----, DOMAIN
+  ----, Domain_Goals
+  --, QUESTION_TEXT_ALIAS
+  ----, TOP_BOX
+  --, [VALUE]
+  ORDER BY Discharge_Date
 
   --SELECT DISTINCT
   --  DOMAIN
