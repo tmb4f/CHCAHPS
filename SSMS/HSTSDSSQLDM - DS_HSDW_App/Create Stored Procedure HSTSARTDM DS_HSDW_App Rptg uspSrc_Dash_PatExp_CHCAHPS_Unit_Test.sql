@@ -7,7 +7,17 @@ GO
 SET QUOTED_IDENTIFIER OFF
 GO
 
-ALTER PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit]
+-- =====================================================================================
+-- Create procedure uspSrc_Dash_PatExp_CHCAHPS_Unit_Test
+-- =====================================================================================
+IF EXISTS (SELECT 1
+    FROM INFORMATION_SCHEMA.ROUTINES 
+    WHERE ROUTINE_SCHEMA='Rptg'
+    AND ROUTINE_TYPE='PROCEDURE'
+    AND ROUTINE_NAME='uspSrc_Dash_PatExp_CHCAHPS_Unit_Test')
+   DROP PROCEDURE Rptg.[uspSrc_Dash_PatExp_CHCAHPS_Unit_Test]
+GO
+CREATE PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit_Test]
 AS
 /**********************************************************************************************************************
 WHAT: Stored procedure for Patient Experience Dashboard - Child HCAHPS (Inpatient) - By Unit
@@ -24,7 +34,7 @@ INFO:
 				DS_HSDW_Prod.dbo.Dim_Pt
                 DS_HSDW_Prod.dbo.Dim_Physcn
 				DS_HSDW_App.Rptg.PG_Extnd_Attr
-				DS_HSDW_App.Rptg.CHCAHPS_Goals
+				DS_HSDW_App.Rptg.CHCAHPS_Goals_Test
                   
       OUTPUTS: CHCAHPS Survey Results
    
@@ -49,7 +59,6 @@ MODS: 	4/17/2018 - Created procedure
 					Set to null goals equal to 0.0
 	   05/20/2019 - Include QUESTION_TEXT in extract
 	   09/26/2019 - TMB - changed logic that assigns targets to domains
-	   11/19/2019 - TMB - Remove restrictions for discharge date range
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
@@ -605,7 +614,7 @@ FROM -- DEPARTMENT_ID values with matching EPIC_DEPARTMENT_ID values in goals ta
 		 , goals.EPIC_DEPARTMENT_NAME
 	     , goals.DOMAIN
 		 , goals.GOAL
-	FROM Rptg.CHCAHPS_Goals goals
+	FROM Rptg.CHCAHPS_Goals_Test goals
 	WHERE goals.EPIC_DEPARTMENT_ID <> 'All Units'
 	) goal
 	ON goal.GOAL_FISCAL_YR = resp.REC_FY
@@ -647,7 +656,7 @@ FROM
 		 , EPIC_DEPARTMENT_NAME
 	     , DOMAIN
 		 , GOAL
-	FROM Rptg.CHCAHPS_Goals
+	FROM Rptg.CHCAHPS_Goals_Test
 	WHERE EPIC_DEPARTMENT_ID <> 'All Units'
 	) goal
 	ON goal.GOAL_FISCAL_YR = resp.REC_FY
@@ -664,7 +673,7 @@ SELECT GOAL_FISCAL_YR
 	 , EPIC_DEPARTMENT_NAME
 	 , DOMAIN
 	 , GOAL
-FROM Rptg.CHCAHPS_Goals
+FROM Rptg.CHCAHPS_Goals_Test
 WHERE EPIC_DEPARTMENT_ID = 'All Units'
 ) goal
 ON goal.GOAL_FISCAL_YR = goals.REC_FY
@@ -695,7 +704,7 @@ FROM
 		 , goals.SERVICE_LINE
 	     , goals.DOMAIN
 		 , goals.GOAL
-	FROM Rptg.CHCAHPS_Goals goals
+	FROM Rptg.CHCAHPS_Goals_Test goals
 	WHERE goals.EPIC_DEPARTMENT_ID = 'All Units'
 	) goal
 	ON goal.GOAL_FISCAL_YR = resp.REC_FY
@@ -718,7 +727,7 @@ FROM
 		 , goals.SERVICE_LINE
 	     , goals.DOMAIN
 		 , goals.GOAL
-	FROM Rptg.CHCAHPS_Goals goals
+	FROM Rptg.CHCAHPS_Goals_Test goals
 	INNER JOIN
 	(
 	SELECT DISTINCT
@@ -844,7 +853,7 @@ AND surveys_ch_ip_sl_goals.Domain_Goals = surveys_ch_ip_sl.Domain_Goals
 ) surveys_ch_ip_sl
 ON rec.day_date = surveys_ch_ip_sl.RECDATE
 FULL OUTER JOIN
-	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date <= @locenddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
+	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @locstartdate AND day_date <= @locenddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
     ON dis.day_date = surveys_ch_ip_sl.DISDATE
 WHERE rec.day_date BETWEEN @locstartdate and @locenddate 
 ORDER BY Event_Date, SURVEY_ID, sk_Dim_PG_Question
@@ -908,7 +917,7 @@ UNION ALL
 	 LEFT OUTER JOIN #surveys_ch_ip_sl surveys_ch_ip_sl
 	     ON rec.day_date = surveys_ch_ip_sl.RECDATE
 	 FULL OUTER JOIN
-		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
+		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
 	     ON dis.day_date = surveys_ch_ip_sl.DISDATE
 	 LEFT OUTER JOIN
 		 (SELECT REC_FY
@@ -921,7 +930,7 @@ UNION ALL
 		  WHERE SERVICE_LINE = 'Womens and Childrens' AND goal_EPIC_DEPARTMENT_ID = 'All Units'
 		 ) goals  -- CHANGE BASED ON GOALS FROM BUSH - CREATE NEW CHCAHPS_Goals
 		 ON surveys_ch_ip_sl.REC_FY = goals.REC_FY AND surveys_ch_ip_sl.Domain_Goals = goals.Domain_Goals
-	 WHERE (rec.day_date >= @locstartdate AND rec.day_date <= @locenddate) -- THIS IS ALL SERVICE LINES TOGETHER, USE "ALL SERVICE LINES" GOALS TO APPLY SAME GOAL DOMAIN GOAL TO ALL SERVICE LINES
+	 WHERE (dis.day_date >= @locstartdate AND DIS.day_date <= @locenddate) AND (rec.day_date >= @locstartdate AND rec.day_date <= @locenddate) -- THIS IS ALL SERVICE LINES TOGETHER, USE "ALL SERVICE LINES" GOALS TO APPLY SAME GOAL DOMAIN GOAL TO ALL SERVICE LINES
 )
 
 ----------------------------------------------------------------------------------------------------------------------

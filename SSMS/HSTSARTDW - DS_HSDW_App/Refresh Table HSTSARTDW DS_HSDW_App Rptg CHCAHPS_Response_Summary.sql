@@ -43,6 +43,21 @@ SET NOCOUNT ON
 
 ---------------------------------------------------
 
+IF OBJECT_ID('tempdb..#chcahps_resp ') IS NOT NULL
+DROP TABLE #chcahps_resp
+
+IF OBJECT_ID('tempdb..#chcahps_resp_dep ') IS NOT NULL
+DROP TABLE #chcahps_resp_dep
+
+IF OBJECT_ID('tempdb..#chcahps_resp_unit ') IS NOT NULL
+DROP TABLE #chcahps_resp_unit
+
+IF OBJECT_ID('tempdb..#chcahps_resp_unit_der ') IS NOT NULL
+DROP TABLE #chcahps_resp_unit_der
+
+IF OBJECT_ID('tempdb..#chcahps_resp_epic_id ') IS NOT NULL
+DROP TABLE #chcahps_resp_epic_id
+
 SELECT
 	 resp.SURVEY_ID
 	,resp.sk_Dim_PG_Question
@@ -207,7 +222,7 @@ FROM #chcahps_resp_dep resp
 ORDER BY UNIT
 
   -- Create index for temp table #chcahps_resp_unit
-  CREATE CLUSTERED INDEX IX_chcahps_resp_unit ON #chcahps_resp_unit ([UNIT])
+  --CREATE CLUSTERED INDEX IX_chcahps_resp_unit ON #chcahps_resp_unit ([UNIT])
 
 SELECT
      resp.SURVEY_ID
@@ -236,7 +251,7 @@ FROM #chcahps_resp_unit resp
 ORDER BY der_UNIT
 
   -- Create index for temp table #chcahps_resp_unit_der
-  CREATE CLUSTERED INDEX IX_chcahps_resp_unit_der ON #chcahps_resp_unit_der ([der_UNIT])
+  --CREATE CLUSTERED INDEX IX_chcahps_resp_unit_der ON #chcahps_resp_unit_der ([der_UNIT])
 
 SELECT
      resp.SURVEY_ID
@@ -284,9 +299,9 @@ ORDER BY resp.SURVEY_ID
 
 ----------------------------------------------------------------------------------------------------
 
---INSERT INTO Rptg.CHCAHPS_Response_Summary (SERVICE_LINE, CLINIC, EPIC_DEPARTMENT_ID, DOMAIN, sk_Dim_PG_Question, Rpt_Prd,
---                                           Event_Date, Event_Date_Disch, quarter_name, month_short_name
---                                          )
+INSERT INTO Rptg.CHCAHPS_Response_Summary (SERVICE_LINE, CLINIC, EPIC_DEPARTMENT_ID, DOMAIN, sk_Dim_PG_Question, Rpt_Prd,
+                                           Event_Date, Event_Date_Disch, quarter_name, month_short_name
+                                          )
 SELECT locations.SERVICE_LINE, locations.CLINIC, locations.EPIC_DEPARTMENT_ID, locations.DOMAIN, locations.sk_Dim_PG_Question, locations.Rpt_Prd, locations.Event_Date
       ,locations.Event_Date_Disch, locations.quarter_name, locations.month_short_name
 FROM
@@ -352,7 +367,7 @@ FROM
 	        ON dept.DEPARTMENT_ID = loc_master.EPIC_DEPARTMENT_ID
 	) responses
 ) locations
-ORDER BY locations.SERVICE_LINE, locations.CLINIC, locations.EPIC_DEPARTMENT_ID, locations.DOMAIN, locations.sk_Dim_PG_Question, locations.Rpt_Prd, locations.Event_Date
+--ORDER BY locations.SERVICE_LINE, locations.CLINIC, locations.EPIC_DEPARTMENT_ID, locations.DOMAIN, locations.sk_Dim_PG_Question, locations.Rpt_Prd, locations.Event_Date
 
 GO
 

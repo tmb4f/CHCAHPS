@@ -7,8 +7,8 @@ GO
 SET QUOTED_IDENTIFIER OFF
 GO
 
-ALTER PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit]
-AS
+--ALTER PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit_Test]
+--AS
 /**********************************************************************************************************************
 WHAT: Stored procedure for Patient Experience Dashboard - Child HCAHPS (Inpatient) - By Unit
 WHO : Tom Burgan
@@ -24,7 +24,7 @@ INFO:
 				DS_HSDW_Prod.dbo.Dim_Pt
                 DS_HSDW_Prod.dbo.Dim_Physcn
 				DS_HSDW_App.Rptg.PG_Extnd_Attr
-				DS_HSDW_App.Rptg.CHCAHPS_Goals
+				DS_HSDW_App.Rptg.CHCAHPS_Goals_Test
                   
       OUTPUTS: CHCAHPS Survey Results
    
@@ -49,10 +49,42 @@ MODS: 	4/17/2018 - Created procedure
 					Set to null goals equal to 0.0
 	   05/20/2019 - Include QUESTION_TEXT in extract
 	   09/26/2019 - TMB - changed logic that assigns targets to domains
-	   11/19/2019 - TMB - Remove restrictions for discharge date range
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
+
+IF OBJECT_ID('tempdb..#chcahps_resp ') IS NOT NULL
+DROP TABLE #chcahps_resp
+
+IF OBJECT_ID('tempdb..#chcahps_resp_dep ') IS NOT NULL
+DROP TABLE #chcahps_resp_dep
+
+IF OBJECT_ID('tempdb..#chcahps_resp_unit ') IS NOT NULL
+DROP TABLE #chcahps_resp_unit
+
+IF OBJECT_ID('tempdb..#chcahps_resp_epic_id ') IS NOT NULL
+DROP TABLE #chcahps_resp_epic_id
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip_sl ') IS NOT NULL
+DROP TABLE #surveys_ch_ip_sl
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip_sl_sum ') IS NOT NULL
+DROP TABLE #surveys_ch_ip_sl_sum
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip_sl_goals ') IS NOT NULL
+DROP TABLE #surveys_ch_ip_sl_goals
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip2_sl_sum ') IS NOT NULL
+DROP TABLE #surveys_ch_ip2_sl_sum
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip2_sl ') IS NOT NULL
+DROP TABLE #surveys_ch_ip2_sl
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip3_sl ') IS NOT NULL
+DROP TABLE #surveys_ch_ip3_sl
+
+IF OBJECT_ID('tempdb..#CHCAHPS_Unit ') IS NOT NULL
+DROP TABLE #CHCAHPS_Unit
 
 ---------------------------------------------------
 ---Default date range is the first day of the current month 2 years ago until the last day of the current month
@@ -60,8 +92,8 @@ DECLARE @currdate AS DATE;
 DECLARE @startdate AS DATE;
 DECLARE @enddate AS DATE;
 
-SET @startdate = '7/1/2018'
-SET @enddate = '6/30/2020'
+--SET @startdate = '7/1/2018'
+--SET @enddate = '6/30/2020'
 
     SET @currdate=CAST(GETDATE() AS DATE);
 
@@ -256,6 +288,8 @@ SELECT
 	,dep.Clrt_DEPt_Nme
 	,CAST(COALESCE(deptrns.Goals_Epic_Department_Id, dep.DEPARTMENT_ID) AS VARCHAR(255)) AS goal_DEPARTMENT_ID
 	,ddte.Fyear_num AS REC_FY
+	,ddte.month_num
+	,ddte.month_short_name
 INTO #chcahps_resp_epic_id
 FROM #chcahps_resp_unit resp
 INNER JOIN DS_HSDW_Prod.Rptg.vwDim_Date ddte
@@ -281,15 +315,24 @@ SELECT DISTINCT
 	 ,unittemp.Phys_Dept
 	 ,unittemp.Phys_Div
 	 ,unittemp.sk_Dim_Clrt_DEPt
-	 ,RespUnit.DEPARTMENT_ID AS EPIC_DEPARTMENT_ID
-	 ,RespUnit.Clrt_DEPt_Nme AS EPIC_DEPARTMENT_NAME
-	 ,RespUnit.goal_DEPARTMENT_ID AS goal_EPIC_DEPARTMENT_ID
+	 ,CAST(COALESCE(RespUnit.DEPARTMENT_ID,'Unknown') AS VARCHAR(255)) AS Survey_Department_Id
+	 ,RespUnit.Clrt_DEPt_Nme AS Survey_Department_Name
+	 --,RespUnit.DEPARTMENT_ID AS EPIC_DEPARTMENT_ID
+	 --,RespUnit.Clrt_DEPt_Nme AS EPIC_DEPARTMENT_NAME
+	 --,RespUnit.goal_DEPARTMENT_ID AS goal_EPIC_DEPARTMENT_ID
+	 ,loc_master.EPIC_DEPARTMENT_ID
+	 ,loc_master.epic_department_name
 	 ,11 AS SERVICE_LINE_ID
+	 ,'Womens and Childrens' AS Survey_Service_Line
 	 ,'Womens and Childrens' AS SERVICE_LINE
 	 ,'Children' AS SUB_SERVICE_LINE
+	 ,RespUnit.UNIT AS Survey_Unit
 	 ,RespUnit.UNIT AS UNIT
 	 ,CASE WHEN RespUnit.Clrt_DEPt_Nme IS NOT NULL THEN RespUnit.Clrt_DEPt_Nme + ' [' + TRIM(RespUnit.DEPARTMENT_ID) + ']'
 	       ELSE 'Unknown' + ' [' + TRIM(RespUnit.DEPARTMENT_ID) + ']'
+      END AS Survey_Clinic
+	 ,CASE WHEN loc_master.epic_department_name IS NOT NULL THEN loc_master.epic_department_name + ' [' + TRIM(CAST(loc_master.EPIC_DEPARTMENT_ID AS VARCHAR(10))) + ']'
+	       ELSE 'Unknown' + ' [' + TRIM(CAST(loc_master.EPIC_DEPARTMENT_ID AS VARCHAR(10))) + ']'
       END AS CLINIC
 	 ,unittemp.VALUE
 	 ,unittemp.VAL_COUNT
@@ -311,7 +354,9 @@ SELECT DISTINCT
 	 ,unittemp.Pat_Age_Survey_Recvd
 	 ,unittemp.Pat_Age_Survey_Answer
 	 ,unittemp.Pat_Sex
-	INTO #surveys_ch_ip_sl
+	 ,RespUnit.month_num
+	 ,RespUnit.month_short_name
+INTO #surveys_ch_ip_sl
 FROM
 (
 SELECT DISTINCT
@@ -560,13 +605,175 @@ SELECT DISTINCT
 		   ,Clrt_DEPt_Nme
 		   ,goal_DEPARTMENT_ID
 		   ,REC_FY
+		   ,month_num
+		   ,month_short_name
 		FROM #chcahps_resp_epic_id
 	) AS RespUnit
 	    ON unittemp.SURVEY_ID = RespUnit.SURVEY_ID
-	ORDER BY REC_FY, SERVICE_LINE, EPIC_DEPARTMENT_ID, goal_EPIC_DEPARTMENT_ID, Domain_Goals, sk_Dim_PG_Question, SURVEY_ID
+    LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc AS loc_master
+	    ON CAST(RespUnit.goal_DEPARTMENT_ID AS NUMERIC(18,0)) = loc_master.EPIC_DEPARTMENT_ID
+	--ORDER BY REC_FY, SERVICE_LINE, EPIC_DEPARTMENT_ID, goal_EPIC_DEPARTMENT_ID, Domain_Goals, sk_Dim_PG_Question, SURVEY_ID
+	ORDER BY REC_FY, SERVICE_LINE, Survey_Department_Id, EPIC_DEPARTMENT_ID, Domain_Goals, sk_Dim_PG_Question, SURVEY_ID
 
   -- Create indexes for temp table #surveys_ch_ip_sl
-  CREATE NONCLUSTERED INDEX IX_surveyschipsl ON #surveys_ch_ip_sl (REC_FY, SERVICE_LINE, EPIC_DEPARTMENT_ID, goal_EPIC_DEPARTMENT_ID, Domain_Goals, sk_Dim_PG_Question, SURVEY_ID)
+  --CREATE NONCLUSTERED INDEX IX_surveyschipsl ON #surveys_ch_ip_sl (REC_FY, SERVICE_LINE, EPIC_DEPARTMENT_ID, goal_EPIC_DEPARTMENT_ID, Domain_Goals, sk_Dim_PG_Question, SURVEY_ID)
+  CREATE NONCLUSTERED INDEX IX_surveyschipsl ON #surveys_ch_ip_sl (REC_FY, SERVICE_LINE, Survey_Department_Id, EPIC_DEPARTMENT_ID, Domain_Goals, sk_Dim_PG_Question, SURVEY_ID)
+
+--SELECT *
+--FROM #surveys_ch_ip_sl
+--WHERE sk_Dim_PG_Question = 2151
+--ORDER BY sk_Dim_PG_Question
+--       , REC_FY
+
+------------------------------------------------------------------------------------------
+--- GENERATE SUMMARY FOR TESTING
+
+--SELECT
+--	REC_FY,
+--	month_num,
+--	month_short_name,
+--	Survey_Unit,
+--    Survey_Clinic,
+--    Survey_Service_Line,
+--    Survey_Department_Id,
+--    Survey_Department_Name,
+--    Domain_Goals,
+--    CLINIC,
+--	SERVICE_LINE_ID,
+--    SERVICE_LINE,
+--    EPIC_DEPARTMENT_ID,
+--    epic_department_name,
+--	TOP_BOX,
+--    VAL_COUNT
+----INTO #surveys_ch_ip_sl_sum
+--FROM #surveys_ch_ip_sl resp
+--WHERE REC_FY = 2020
+----AND sk_Dim_PG_Question = 2151 -- Rate Hospital 0-10
+--AND Domain_Goals IS NOT NULL
+----AND (Domain_Goals IS NOT NULL
+----AND Domain_Goals <> 'Additional Questions About Your Care')
+--ORDER BY resp.Domain_Goals
+--       , resp.REC_FY
+--       , resp.month_num
+--	   , resp.month_short_name
+--	   , resp.Survey_Unit
+--	   , resp.Survey_Clinic
+--	   , resp.Survey_Service_Line
+--	   , resp.Survey_Department_Id
+--	   , resp.Survey_Department_Name
+--	   --, resp.Domain_Goals
+--	   , resp.SERVICE_LINE_ID
+--	   , resp.SERVICE_LINE
+--	   , resp.EPIC_DEPARTMENT_ID
+--	   , resp.epic_department_name
+
+SELECT resp.REC_FY,
+       resp.month_num,
+       resp.month_short_name,
+	   resp.Survey_Unit,
+       resp.Survey_Department_Id,
+       resp.Survey_Department_Name,
+       resp.Survey_Clinic,
+       resp.Survey_Service_Line,
+       resp.EPIC_DEPARTMENT_ID,
+       resp.epic_department_name,
+       resp.CLINIC,
+       resp.SERVICE_LINE_ID,
+       resp.SERVICE_LINE,
+       resp.Domain_Goals,
+       SUM(resp.TOP_BOX) AS TOP_BOX,
+       SUM(resp.VAL_COUNT) AS VAL_COUNT,
+	   CAST(CAST(SUM(resp.TOP_BOX) AS NUMERIC(6,3)) / CAST(SUM(resp.VAL_COUNT) AS NUMERIC(6,3)) AS NUMERIC(4,3)) AS SCORE,
+	   COUNT(*) AS N
+INTO #surveys_ch_ip_sl_sum
+FROM
+(
+--SELECT DISTINCT
+SELECT
+	REC_FY,
+	month_num,
+	month_short_name,
+	Survey_Unit,
+    Survey_Department_Id,
+    Survey_Department_Name,
+    Survey_Clinic,
+    Survey_Service_Line,
+    EPIC_DEPARTMENT_ID,
+    epic_department_name,
+    CLINIC,
+	SERVICE_LINE_ID,
+    SERVICE_LINE,
+    Domain_Goals,
+	TOP_BOX,
+    VAL_COUNT
+--INTO #surveys_ch_ip_sl_sum
+FROM #surveys_ch_ip_sl
+WHERE
+--WHERE REC_FY = 2020
+--WHERE REC_FY IN (2019,2020)
+--AND sk_Dim_PG_Question = 17 -- Rate Hospital 0-10
+--AND Domain_Goals IS NOT NULL
+--AND (Domain_Goals IS NOT NULL
+(Domain_Goals IS NOT NULL
+AND Domain_Goals NOT IN
+(
+'Meals'
+,'Overall Assessment'
+,'Pediatric ICU/CCU'
+,'Personal Issues'
+))
+) resp
+GROUP BY 
+	REC_FY,
+	month_num,
+	month_short_name,
+	Survey_Unit,
+    Survey_Department_Id,
+    Survey_Department_Name,
+    Survey_Clinic,
+    Survey_Service_Line,
+    EPIC_DEPARTMENT_ID,
+    epic_department_name,
+    CLINIC,
+	SERVICE_LINE_ID,
+    SERVICE_LINE,
+	Domain_Goals
+
+--SELECT
+--       REC_FY,
+--	   Survey_Unit,
+--       Survey_Department_Id,
+--       Survey_Department_Name,
+--       Survey_Clinic,
+--       Survey_Service_Line,
+--       Domain_Goals,
+--       EPIC_DEPARTMENT_ID,
+--       epic_department_name,
+--       CLINIC,
+--       SERVICE_LINE_ID,
+--       SERVICE_LINE,
+--       month_num,
+--       month_short_name,
+--       TOP_BOX,
+--       VAL_COUNT,
+--	   SCORE,
+--	   N
+--FROM #surveys_ch_ip_sl_sum
+----WHERE Domain_Goals = 'Rate Hospital'
+--ORDER BY REC_FY
+--       , Survey_Unit
+--	   , Survey_Department_Id
+--	   , Survey_Department_Name
+--	   , Survey_Clinic
+--	   , Survey_Service_Line
+--	   , Domain_Goals
+--	   , EPIC_DEPARTMENT_ID
+--	   , epic_department_name
+--	   , CLINIC
+--	   , SERVICE_LINE_ID
+--	   , SERVICE_LINE
+--       , month_num
+--	   , month_short_name
 
 ------------------------------------------------------------------------------------------
 --- GENERATE GOALS
@@ -574,7 +781,8 @@ SELECT DISTINCT
 SELECT DISTINCT
        all_goals.REC_FY,
 	   all_goals.SERVICE_LINE,
-       all_goals.goal_EPIC_DEPARTMENT_ID,
+	   all_goals.EPIC_DEPARTMENT_ID,
+       all_goals.Goals_EPIC_DEPARTMENT_ID,
        all_goals.Domain_Goals,
        all_goals.GOAL
 INTO #surveys_ch_ip_sl_goals
@@ -584,7 +792,7 @@ SELECT
        resp.REC_FY,
        resp.SERVICE_LINE,
        resp.EPIC_DEPARTMENT_ID,
-	   resp.goal_EPIC_DEPARTMENT_ID,
+	   resp.Goals_EPIC_DEPARTMENT_ID,
        resp.Domain_Goals,
 	   goal.GOAL
 FROM -- DEPARTMENT_ID values with matching EPIC_DEPARTMENT_ID values in goals table
@@ -592,10 +800,10 @@ FROM -- DEPARTMENT_ID values with matching EPIC_DEPARTMENT_ID values in goals ta
 	SELECT DISTINCT
 	       REC_FY,
            SERVICE_LINE,
-           EPIC_DEPARTMENT_ID,
-		   goal_EPIC_DEPARTMENT_ID,
+           Survey_Department_Id AS EPIC_DEPARTMENT_ID,
+		   EPIC_DEPARTMENT_ID AS Goals_EPIC_DEPARTMENT_ID,
            Domain_Goals
-	FROM #surveys_ch_ip_sl
+	FROM #surveys_ch_ip_sl_sum
 	) resp
 	LEFT OUTER JOIN
 	(
@@ -605,11 +813,11 @@ FROM -- DEPARTMENT_ID values with matching EPIC_DEPARTMENT_ID values in goals ta
 		 , goals.EPIC_DEPARTMENT_NAME
 	     , goals.DOMAIN
 		 , goals.GOAL
-	FROM Rptg.CHCAHPS_Goals goals
+	FROM Rptg.CHCAHPS_Goals_Test goals
 	WHERE goals.EPIC_DEPARTMENT_ID <> 'All Units'
 	) goal
 	ON goal.GOAL_FISCAL_YR = resp.REC_FY
-	AND goal.EPIC_DEPARTMENT_ID = resp.goal_EPIC_DEPARTMENT_ID
+	AND goal.EPIC_DEPARTMENT_ID = resp.Goals_EPIC_DEPARTMENT_ID
 	AND goal.DOMAIN = resp.Domain_Goals
 	WHERE goal.EPIC_DEPARTMENT_ID IS NOT NULL
 UNION ALL -- DEPARTMENT_ID values without matching EPIC_DEPARTMENT_ID values in goals table: use 'All Units' goals for respective service line
@@ -617,7 +825,7 @@ SELECT
        goals.REC_FY,
        goals.SERVICE_LINE,
        goals.EPIC_DEPARTMENT_ID,
-	   goals.goal_EPIC_DEPARTMENT_ID,
+	   goals.Goals_EPIC_DEPARTMENT_ID,
        goals.Domain_Goals,
        goal.GOAL
 FROM
@@ -626,7 +834,7 @@ SELECT
 	   resp.REC_FY,
        resp.SERVICE_LINE,
        resp.EPIC_DEPARTMENT_ID,
-	   resp.goal_EPIC_DEPARTMENT_ID,
+	   resp.Goals_EPIC_DEPARTMENT_ID,
        resp.Domain_Goals,
 	   goal.GOAL
 FROM
@@ -634,10 +842,10 @@ FROM
 	SELECT DISTINCT
 	       REC_FY,
            SERVICE_LINE,
-           EPIC_DEPARTMENT_ID,
-		   goal_EPIC_DEPARTMENT_ID,
+           Survey_Department_Id AS EPIC_DEPARTMENT_ID,
+		   EPIC_DEPARTMENT_ID AS Goals_EPIC_DEPARTMENT_ID,
            Domain_Goals
-	FROM #surveys_ch_ip_sl
+	FROM #surveys_ch_ip_sl_sum
 	) resp
 	LEFT OUTER JOIN
 	(
@@ -647,11 +855,11 @@ FROM
 		 , EPIC_DEPARTMENT_NAME
 	     , DOMAIN
 		 , GOAL
-	FROM Rptg.CHCAHPS_Goals
+	FROM Rptg.CHCAHPS_Goals_Test
 	WHERE EPIC_DEPARTMENT_ID <> 'All Units'
 	) goal
 	ON goal.GOAL_FISCAL_YR = resp.REC_FY
-	AND goal.EPIC_DEPARTMENT_ID = resp.goal_EPIC_DEPARTMENT_ID
+	AND goal.EPIC_DEPARTMENT_ID = resp.Goals_EPIC_DEPARTMENT_ID
 	AND goal.DOMAIN = resp.Domain_Goals
 	WHERE goal.EPIC_DEPARTMENT_ID IS NULL
 ) goals
@@ -664,191 +872,197 @@ SELECT GOAL_FISCAL_YR
 	 , EPIC_DEPARTMENT_NAME
 	 , DOMAIN
 	 , GOAL
-FROM Rptg.CHCAHPS_Goals
+FROM Rptg.CHCAHPS_Goals_Test
 WHERE EPIC_DEPARTMENT_ID = 'All Units'
 ) goal
 ON goal.GOAL_FISCAL_YR = goals.REC_FY
 AND goal.SERVICE_LINE = 'Womens and Childrens'
 AND goal.DOMAIN = goals.Domain_Goals
-UNION ALL -- EPIC_DEPARTMENT_ID = 'All Units' goals by service line
-  SELECT
-       resp.REC_FY,
-       resp.SERVICE_LINE,
-       'All Units' AS EPIC_DEPARTMENT_ID,
-       'All Units' AS goal_EPIC_DEPARTMENT_ID,
-       resp.Domain_Goals,
-	   goal.GOAL
-FROM
-	(
-	SELECT DISTINCT
-	       REC_FY,
-           SERVICE_LINE,
-           Domain_Goals
-	FROM #surveys_ch_ip_sl
-	) resp
-	LEFT OUTER JOIN
-	(
-	SELECT goals.GOAL_FISCAL_YR
-	     , goals.UNIT
-		 , goals.EPIC_DEPARTMENT_ID
-		 , goals.EPIC_DEPARTMENT_NAME
-		 , goals.SERVICE_LINE
-	     , goals.DOMAIN
-		 , goals.GOAL
-	FROM Rptg.CHCAHPS_Goals goals
-	WHERE goals.EPIC_DEPARTMENT_ID = 'All Units'
-	) goal
-	ON goal.GOAL_FISCAL_YR = resp.REC_FY
-	AND goal.SERVICE_LINE = 'Womens and Childrens'
-	AND goal.DOMAIN = resp.Domain_Goals
-UNION ALL -- EPIC_DEPARTMENT_ID = 'All Units' goals for Service_Line = 'All Service Lines'
-  SELECT
-       goal.GOAL_FISCAL_YR AS REC_FY,
-	   'All Service Lines' AS SERVICE_LINE,
-       'All Units' AS EPIC_DEPARTMENT_ID,
-       'All Units' AS goal_EPIC_DEPARTMENT_ID,
-       goal.DOMAIN AS Domain_Goals,
-	   goal.GOAL
-FROM
-	(
-	SELECT goals.GOAL_FISCAL_YR
-	     , goals.UNIT
-		 , goals.EPIC_DEPARTMENT_ID
-		 , goals.EPIC_DEPARTMENT_NAME
-		 , goals.SERVICE_LINE
-	     , goals.DOMAIN
-		 , goals.GOAL
-	FROM Rptg.CHCAHPS_Goals goals
-	INNER JOIN
-	(
-	SELECT DISTINCT
-		REC_FY
-	FROM #surveys_ch_ip_sl
-	) resp
-	ON goals.GOAL_FISCAL_YR = resp.REC_FY
-	WHERE goals.EPIC_DEPARTMENT_ID = 'All Units' AND goals.SERVICE_LINE = 'All Service Lines'
-	) goal
+--UNION ALL -- EPIC_DEPARTMENT_ID = 'All Units' goals by service line
+--  SELECT
+--       resp.REC_FY,
+--       resp.SERVICE_LINE,
+--       'All Units' AS EPIC_DEPARTMENT_ID,
+--       'All Units' AS goal_EPIC_DEPARTMENT_ID,
+--       resp.Domain_Goals,
+--	   goal.GOAL
+--FROM
+--	(
+--	SELECT DISTINCT
+--	       REC_FY,
+--           SERVICE_LINE,
+--           Domain_Goals
+--	FROM #surveys_ch_ip_sl
+--	) resp
+--	LEFT OUTER JOIN
+--	(
+--	SELECT goals.GOAL_FISCAL_YR
+--	     , goals.UNIT
+--		 , goals.EPIC_DEPARTMENT_ID
+--		 , goals.EPIC_DEPARTMENT_NAME
+--		 , goals.SERVICE_LINE
+--	     , goals.DOMAIN
+--		 , goals.GOAL
+--	FROM Rptg.CHCAHPS_Goals_Test goals
+--	WHERE goals.EPIC_DEPARTMENT_ID = 'All Units'
+--	) goal
+--	ON goal.GOAL_FISCAL_YR = resp.REC_FY
+--	AND goal.SERVICE_LINE = 'Womens and Childrens'
+--	AND goal.DOMAIN = resp.Domain_Goals
+--UNION ALL -- EPIC_DEPARTMENT_ID = 'All Units' goals for Service_Line = 'All Service Lines'
+--  SELECT
+--       goal.GOAL_FISCAL_YR AS REC_FY,
+--	   'All Service Lines' AS SERVICE_LINE,
+--       'All Units' AS EPIC_DEPARTMENT_ID,
+--       'All Units' AS goal_EPIC_DEPARTMENT_ID,
+--       goal.DOMAIN AS Domain_Goals,
+--	   goal.GOAL
+--FROM
+--	(
+--	SELECT goals.GOAL_FISCAL_YR
+--	     , goals.UNIT
+--		 , goals.EPIC_DEPARTMENT_ID
+--		 , goals.EPIC_DEPARTMENT_NAME
+--		 , goals.SERVICE_LINE
+--	     , goals.DOMAIN
+--		 , goals.GOAL
+--	FROM Rptg.CHCAHPS_Goals_Test goals
+--	INNER JOIN
+--	(
+--	SELECT DISTINCT
+--		REC_FY
+--	FROM #surveys_ch_ip_sl
+--	) resp
+--	ON goals.GOAL_FISCAL_YR = resp.REC_FY
+--	WHERE goals.EPIC_DEPARTMENT_ID = 'All Units' AND goals.SERVICE_LINE = 'All Service Lines'
+--	) goal
 ) all_goals
-ORDER BY REC_FY, all_goals.SERVICE_LINE, goal_EPIC_DEPARTMENT_ID, Domain_Goals
+ORDER BY REC_FY, all_goals.SERVICE_LINE, Goals_EPIC_DEPARTMENT_ID, Domain_Goals
 
   -- Create indexes for temp table #surveys_ch_ip_sl_goals
-  CREATE NONCLUSTERED INDEX IX_surveyschipslgoals ON #surveys_ch_ip_sl_goals (REC_FY, SERVICE_LINE, goal_EPIC_DEPARTMENT_ID, Domain_Goals)
+  CREATE NONCLUSTERED INDEX IX_surveyschipslgoals ON #surveys_ch_ip_sl_goals (REC_FY, SERVICE_LINE, Goals_EPIC_DEPARTMENT_ID, Domain_Goals)
+
+--SELECT REC_FY,
+--       SERVICE_LINE
+--       EPIC_DEPARTMENT_ID,
+--	   Goals_EPIC_DEPARTMENT_ID,
+--       Domain_Goals,
+--       GOAL
+--FROM #surveys_ch_ip_sl_goals
+--ORDER BY REC_FY
+--       , SERVICE_LINE
+--	   , Goals_EPIC_DEPARTMENT_ID
+--	   , Domain_Goals
 
 ------------------------------------------------------------------------------------------
-
 --- JOIN TO DIM_DATE
 
- SELECT
+SELECT
 	'CHCAHPS' AS Event_Type
-	,surveys_ch_ip_sl.SURVEY_ID
-	,surveys_ch_ip_sl.sk_Fact_Pt_Acct
-	,LEFT(DATENAME(MM, rec.day_date), 3) + ' ' + CAST(DAY(rec.day_date) AS VARCHAR(2)) AS Rpt_Prd
-	,rec.day_date AS Event_Date
-	,dis.day_date AS Event_Date_Disch
 	,rec.Fyear_num AS Event_FY
-	,surveys_ch_ip_sl.sk_Dim_PG_Question
-	,surveys_ch_ip_sl.VARNAME
-	,surveys_ch_ip_sl.QUESTION_TEXT
-	,surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
-	,surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
-	,surveys_ch_ip_sl.SERVICE_LINE_ID
-	,surveys_ch_ip_sl.SERVICE_LINE
-	,surveys_ch_ip_sl.SUB_SERVICE_LINE
-	,surveys_ch_ip_sl.UNIT
-	,surveys_ch_ip_sl.CLINIC
-	,surveys_ch_ip_sl.DOMAIN
-	,surveys_ch_ip_sl.Domain_Goals
-	,surveys_ch_ip_sl.RECDATE AS Recvd_Date
-	,surveys_ch_ip_sl.DISDATE AS Discharge_Date
-	,surveys_ch_ip_sl.REC_FY
-	,surveys_ch_ip_sl.MRN_int AS Patient_ID
-	,surveys_ch_ip_sl.Pat_Name
-	,surveys_ch_ip_sl.Pat_Sex
-	,surveys_ch_ip_sl.Pat_DOB
-	,surveys_ch_ip_sl.Pat_Age
-	,surveys_ch_ip_sl.Pat_Age_Survey_Recvd
-	,surveys_ch_ip_sl.Pat_Age_Survey_Answer
-	,CASE WHEN surveys_ch_ip_sl.Pat_Age_Survey_Answer < 18 THEN 1 ELSE 0 END AS Peds
-	,surveys_ch_ip_sl.NPINumber
-	,surveys_ch_ip_sl.Phys_Name
-	,surveys_ch_ip_sl.Phys_Dept
-	,surveys_ch_ip_sl.Phys_Div
-	,surveys_ch_ip_sl.GOAL
-	,surveys_ch_ip_sl.VALUE
-	,surveys_ch_ip_sl.Value_Resp_Grp
-	,surveys_ch_ip_sl.TOP_BOX
-	,surveys_ch_ip_sl.TOP_BOX_RESPONSE
-	,surveys_ch_ip_sl.VAL_COUNT
-	,rec.quarter_name
-	,rec.month_short_name
-INTO #surveys_ch_ip2_sl
+    ,surveys_ch_ip_sl_sum.month_num
+	,surveys_ch_ip_sl_sum.month_short_name
+	,surveys_ch_ip_sl_sum.Survey_Unit
+	,surveys_ch_ip_sl_sum.Survey_Department_Id
+	,surveys_ch_ip_sl_sum.Survey_Department_Name
+	,surveys_ch_ip_sl_sum.Survey_Clinic
+	,surveys_ch_ip_sl_sum.Survey_Service_Line
+    ,surveys_ch_ip_sl_sum.EPIC_DEPARTMENT_ID
+    ,surveys_ch_ip_sl_sum.epic_department_name
+	,surveys_ch_ip_sl_sum.CLINIC
+    ,surveys_ch_ip_sl_sum.SERVICE_LINE_ID
+    ,surveys_ch_ip_sl_sum.SERVICE_LINE
+    ,surveys_ch_ip_sl_sum.Domain_Goals
+    ,surveys_ch_ip_sl_sum.TOP_BOX
+    ,surveys_ch_ip_sl_sum.VAL_COUNT
+	,surveys_ch_ip_sl_sum.SCORE
+	,surveys_ch_ip_sl_sum.N
+    ,surveys_ch_ip_sl_sum.GOAL
+INTO #surveys_ch_ip2_sl_sum
 FROM
-	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) rec
-LEFT OUTER JOIN
 (
-SELECT surveys_ch_ip_sl.SURVEY_ID,
-       surveys_ch_ip_sl.sk_Fact_Pt_Acct,
-       surveys_ch_ip_sl.RECDATE,
-       surveys_ch_ip_sl.DISDATE,
-       surveys_ch_ip_sl.FY,
-       surveys_ch_ip_sl.REC_FY,
-       surveys_ch_ip_sl.Phys_Name,
-       surveys_ch_ip_sl.Phys_Dept,
-       surveys_ch_ip_sl.Phys_Div,
-       surveys_ch_ip_sl.sk_Dim_Clrt_DEPt,
-       surveys_ch_ip_sl.EPIC_DEPARTMENT_ID,
-       surveys_ch_ip_sl.EPIC_DEPARTMENT_NAME,
-       surveys_ch_ip_sl.goal_EPIC_DEPARTMENT_ID,
-       surveys_ch_ip_sl.SERVICE_LINE_ID,
-       surveys_ch_ip_sl.SERVICE_LINE,
-       surveys_ch_ip_sl.SUB_SERVICE_LINE,
-       surveys_ch_ip_sl.UNIT,
-       surveys_ch_ip_sl.CLINIC,
-       surveys_ch_ip_sl.VALUE,
-       surveys_ch_ip_sl.VAL_COUNT,
-       surveys_ch_ip_sl.DOMAIN,
-       surveys_ch_ip_sl.Domain_Goals,
-       surveys_ch_ip_sl.Value_Resp_Grp,
-       surveys_ch_ip_sl.TOP_BOX,
-       surveys_ch_ip_sl.TOP_BOX_RESPONSE,
-       surveys_ch_ip_sl.VARNAME,
-       surveys_ch_ip_sl.Svc_Cde,
-       surveys_ch_ip_sl.sk_Dim_PG_Question,
-       surveys_ch_ip_sl.QUESTION_TEXT,
-       surveys_ch_ip_sl.QUESTION_TEXT_ALIAS,
-       surveys_ch_ip_sl.MRN_int,
-       surveys_ch_ip_sl.NPINumber,
-       surveys_ch_ip_sl.Pat_Name,
-       surveys_ch_ip_sl.Pat_DOB,
-       surveys_ch_ip_sl.Pat_Age,
-       surveys_ch_ip_sl.Pat_Age_Survey_Recvd,
-       surveys_ch_ip_sl.Pat_Age_Survey_Answer,
-       surveys_ch_ip_sl.Pat_Sex,
+SELECT surveys_ch_ip_sl_sum.REC_FY,
+       surveys_ch_ip_sl_sum.month_num,
+	   surveys_ch_ip_sl_sum.month_short_name,
+	   surveys_ch_ip_sl_sum.Survey_Unit,
+	   surveys_ch_ip_sl_sum.Survey_Department_Id,
+	   surveys_ch_ip_sl_sum.Survey_Department_Name,
+	   surveys_ch_ip_sl_sum.Survey_Clinic,
+	   surveys_ch_ip_sl_sum.Survey_Service_Line,
+       surveys_ch_ip_sl_sum.EPIC_DEPARTMENT_ID,
+       surveys_ch_ip_sl_sum.epic_department_name,
+	   surveys_ch_ip_sl_sum.CLINIC,
+       surveys_ch_ip_sl_sum.SERVICE_LINE_ID,
+       surveys_ch_ip_sl_sum.SERVICE_LINE,
+       surveys_ch_ip_sl_sum.Domain_Goals,
+       surveys_ch_ip_sl_sum.TOP_BOX,
+       surveys_ch_ip_sl_sum.VAL_COUNT,
+	   surveys_ch_ip_sl_sum.SCORE,
+	   surveys_ch_ip_sl_sum.N,
        surveys_ch_ip_sl_goals.GOAL
-FROM #surveys_ch_ip_sl surveys_ch_ip_sl
+FROM #surveys_ch_ip_sl_sum surveys_ch_ip_sl_sum
 LEFT OUTER JOIN
 (
 SELECT DISTINCT
 	REC_FY
-  , goal_EPIC_DEPARTMENT_ID
+  , Goals_EPIC_DEPARTMENT_ID
   , SERVICE_LINE
   , Domain_Goals
   , GOAL
 FROM #surveys_ch_ip_sl_goals
-WHERE goal_EPIC_DEPARTMENT_ID <> 'All Units'
+--WHERE Goals_EPIC_DEPARTMENT_ID <> 'All Units'
 ) surveys_ch_ip_sl_goals
-ON surveys_ch_ip_sl_goals.REC_FY = surveys_ch_ip_sl.REC_FY
-AND surveys_ch_ip_sl_goals.goal_EPIC_DEPARTMENT_ID = surveys_ch_ip_sl.goal_EPIC_DEPARTMENT_ID
-AND surveys_ch_ip_sl_goals.SERVICE_LINE = surveys_ch_ip_sl.SERVICE_LINE
-AND surveys_ch_ip_sl_goals.Domain_Goals = surveys_ch_ip_sl.Domain_Goals
-) surveys_ch_ip_sl
-ON rec.day_date = surveys_ch_ip_sl.RECDATE
-FULL OUTER JOIN
-	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date <= @locenddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
-    ON dis.day_date = surveys_ch_ip_sl.DISDATE
-WHERE rec.day_date BETWEEN @locstartdate and @locenddate 
-ORDER BY Event_Date, SURVEY_ID, sk_Dim_PG_Question
+ON surveys_ch_ip_sl_goals.REC_FY = surveys_ch_ip_sl_sum.REC_FY
+AND surveys_ch_ip_sl_goals.Goals_EPIC_DEPARTMENT_ID = surveys_ch_ip_sl_sum.EPIC_DEPARTMENT_ID
+AND surveys_ch_ip_sl_goals.SERVICE_LINE = surveys_ch_ip_sl_sum.SERVICE_LINE
+AND surveys_ch_ip_sl_goals.Domain_Goals = surveys_ch_ip_sl_sum.Domain_Goals
+) surveys_ch_ip_sl_sum
+INNER JOIN
+(
+SELECT DISTINCT
+	Fyear_num
+FROM DS_HSDW_Prod.dbo.Dim_Date
+WHERE day_date BETWEEN @locstartdate and @locenddate
+) rec
+ON rec.Fyear_num = surveys_ch_ip_sl_sum.REC_FY
+WHERE surveys_ch_ip_sl_sum.REC_FY IN (2019,2020)
 
+SELECT Event_Type,
+       Event_FY,
+       Survey_Unit,
+       Survey_Department_Id,
+       Survey_Department_Name,
+	   Survey_Clinic,
+	   Survey_Service_Line,
+       Domain_Goals,
+	   EPIC_DEPARTMENT_ID AS Goals_Department_Id,
+	   epic_department_name AS Goals_Department_Name,
+	   CLINIC AS Goals_Clinic,
+       month_num,
+       month_short_name,
+       TOP_BOX,
+       VAL_COUNT,
+       SCORE,
+       N,
+       GOAL
+FROM #surveys_ch_ip2_sl_sum
+ORDER BY Event_FY
+	   , Survey_Unit
+	   , Survey_Department_Id
+	   , Survey_Department_Name
+	   , Survey_Service_Line
+	   , Domain_Goals
+       , month_num
+	   , month_short_name
+--ORDER BY Event_FY
+--       , month_num
+--	   , month_short_name
+--	   , Survey_Unit
+--	   , Survey_Department_Id
+--	   , Survey_Department_Name
+--	   , Survey_Service_Line
+--	   , Domain_Goals
+/*
 -------------------------------------------------------------------------------------------------------------------------------------
 -- SELF UNION TO ADD AN "All Units" UNIT
 
@@ -908,7 +1122,7 @@ UNION ALL
 	 LEFT OUTER JOIN #surveys_ch_ip_sl surveys_ch_ip_sl
 	     ON rec.day_date = surveys_ch_ip_sl.RECDATE
 	 FULL OUTER JOIN
-		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
+		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
 	     ON dis.day_date = surveys_ch_ip_sl.DISDATE
 	 LEFT OUTER JOIN
 		 (SELECT REC_FY
@@ -921,7 +1135,7 @@ UNION ALL
 		  WHERE SERVICE_LINE = 'Womens and Childrens' AND goal_EPIC_DEPARTMENT_ID = 'All Units'
 		 ) goals  -- CHANGE BASED ON GOALS FROM BUSH - CREATE NEW CHCAHPS_Goals
 		 ON surveys_ch_ip_sl.REC_FY = goals.REC_FY AND surveys_ch_ip_sl.Domain_Goals = goals.Domain_Goals
-	 WHERE (rec.day_date >= @locstartdate AND rec.day_date <= @locenddate) -- THIS IS ALL SERVICE LINES TOGETHER, USE "ALL SERVICE LINES" GOALS TO APPLY SAME GOAL DOMAIN GOAL TO ALL SERVICE LINES
+	 WHERE (dis.day_date >= @locstartdate AND DIS.day_date <= @locenddate) AND (rec.day_date >= @locstartdate AND rec.day_date <= @locenddate) -- THIS IS ALL SERVICE LINES TOGETHER, USE "ALL SERVICE LINES" GOALS TO APPLY SAME GOAL DOMAIN GOAL TO ALL SERVICE LINES
 )
 
 ----------------------------------------------------------------------------------------------------------------------
@@ -983,7 +1197,7 @@ UNION ALL
    ,[quarter_name]
    ,[month_short_name]
   FROM #surveys_ch_ip3_sl
-
+*/
 GO
 
 

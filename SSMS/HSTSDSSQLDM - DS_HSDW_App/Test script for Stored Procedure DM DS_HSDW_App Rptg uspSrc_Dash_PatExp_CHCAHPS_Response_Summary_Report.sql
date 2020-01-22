@@ -7,13 +7,28 @@ GO
 SET QUOTED_IDENTIFIER OFF
 GO
 
-ALTER PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Unit]
-AS
+DECLARE @StartDate DATE
+       ,@EndDate DATE
+
+--SET @StartDate = NULL
+--SET @EndDate = NULL
+SET @StartDate = '7/1/2018'
+--SET @EndDate = '12/29/2019'
+--SET @StartDate = '7/1/2019'
+SET @EndDate = '1/1/2020'
+
+--CREATE PROC [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Response_Summary_Report]
+--    (
+--     @StartDate SMALLDATETIME = NULL,
+--     @EndDate SMALLDATETIME = NULL,
+     --@in_deps VARCHAR(MAX)
+--    )
+--AS
 /**********************************************************************************************************************
-WHAT: Stored procedure for Patient Experience Dashboard - Child HCAHPS (Inpatient) - By Unit
+WHAT: Stored procedure for Patient Experience Dashboard - Child HCAHPS (Inpatient) - Response Summary
 WHO : Tom Burgan
-WHEN: 4/17/2018
-WHY : Produce surveys results for patient experience dashboard
+WHEN: 1/1/2020
+WHY : Report survey response summary for patient experience dashboard
 -----------------------------------------------------------------------------------------------------------------------
 INFO: 
       INPUTS:	DS_HSDW_Prod.Rptg.vwFact_PressGaney_Responses
@@ -29,55 +44,68 @@ INFO:
       OUTPUTS: CHCAHPS Survey Results
    
 ------------------------------------------------------------------------------------------------------------------------
-MODS: 	4/17/2018 - Created procedure
-        7/26/2018 - Change name of Service_Line column
-		10/4/2018 - Format script similar to CGCAHPS
-		11/5/2018 - Edit logic used to assign an Epic Department Id value to a survey; retain the CLINIC column as
-		            the identifier for an inpatient unit; the UNIT column will contain the unit value assigned by PG
-	   11/27/2018 - Use updated CHCAHPS_Goals table; add FY to Goals JOIN
-	   11/29/2018 - Set Domain_Goals values for Global Rating Item domains (Rate Hospital, Recommend)
-	    12/4/2018 - Extract only surveys with a service type of 'PC'; set SERVICE_LINE abd SUB_SERVICE_LINE values to
-		            fixed "Womens and Childrens" and "Children", respectively; for units without specified goals,
-					use the "All Units" goal values
-	   12/10/2018 - Include responses "10-Best hosp" and "0-Worst hosp" for Rate Hospital question
-	   12/11/2018 - Use new CHCAHPS_Goals table
-	   12/14/2018 - Correct issue with assignment of '7N ACUTE' surveys to an Epic Department Id
-	   12/18/2018 - Include surveys where service type value is NULL
-	   02/13/2019 - Add logic for assigning goals to survey locations
-	   03/06/2019 - Remove responses for question "Before your child left the hospital, did a provider tell you that your
-	                child should take any new medicine that he or she had not been taking when this hospital stay began?;
-					Set to null goals equal to 0.0
-	   05/20/2019 - Include QUESTION_TEXT in extract
-	   09/26/2019 - TMB - changed logic that assigns targets to domains
-	   11/19/2019 - TMB - Remove restrictions for discharge date range
+MODS: 	 1/1/2020 - Created procedure
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
 
+IF OBJECT_ID('tempdb..#chcahps_resp ') IS NOT NULL
+DROP TABLE #chcahps_resp
+
+IF OBJECT_ID('tempdb..#chcahps_resp_dep ') IS NOT NULL
+DROP TABLE #chcahps_resp_dep
+
+IF OBJECT_ID('tempdb..#chcahps_resp_unit ') IS NOT NULL
+DROP TABLE #chcahps_resp_unit
+
+--IF OBJECT_ID('tempdb..#chcahps_resp_unit_der ') IS NOT NULL
+--DROP TABLE #chcahps_resp_unit_der
+
+IF OBJECT_ID('tempdb..#chcahps_resp_epic_id ') IS NOT NULL
+DROP TABLE #chcahps_resp_epic_id
+
+IF OBJECT_ID('tempdb..#chcahps_resp_check ') IS NOT NULL
+DROP TABLE #chcahps_resp_check
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip_sl ') IS NOT NULL
+DROP TABLE #surveys_ch_ip_sl
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip_sl_goals ') IS NOT NULL
+DROP TABLE #surveys_ch_ip_sl_goals
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip2_sl ') IS NOT NULL
+DROP TABLE #surveys_ch_ip2_sl
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip3_sl ') IS NOT NULL
+DROP TABLE #surveys_ch_ip3_sl
+
+IF OBJECT_ID('tempdb..#CHCAHPS_Unit ') IS NOT NULL
+DROP TABLE #CHCAHPS_Unit
+
+IF OBJECT_ID('tempdb..#surveys_ch_ip_sl_sum ') IS NOT NULL
+DROP TABLE #surveys_ch_ip_sl_sum
+
 ---------------------------------------------------
----Default date range is the first day of the current month 2 years ago until the last day of the current month
-DECLARE @currdate AS DATE;
-DECLARE @startdate AS DATE;
-DECLARE @enddate AS DATE;
+---Default date range is the first day of FY 19 (7/1/2018) to yesterday's date
+DECLARE @currdate AS SMALLDATETIME;
+--DECLARE @startdate AS DATE;
+--DECLARE @enddate AS DATE;
 
-SET @startdate = '7/1/2018'
-SET @enddate = '6/30/2020'
+    SET @currdate=CAST(CAST(GETDATE() AS DATE) AS SMALLDATETIME);
 
-    SET @currdate=CAST(GETDATE() AS DATE);
-
-    IF @startdate IS NULL
-        AND @enddate IS NULL
+    IF @StartDate IS NULL
+        AND @EndDate IS NULL
         BEGIN
-            SET @startdate = CAST(DATEADD(MONTH,DATEDIFF(MONTH,0,DATEADD(MONTH,-24,GETDATE())),0) AS DATE); 
-            SET @enddate= CAST(EOMONTH(GETDATE()) AS DATE); 
+            SET @StartDate = CAST('7/1/2018' AS DATE);
+            SET @EndDate= DATEADD(DAY, -1, CAST(GETDATE() AS DATE)); 
         END; 
 
 ----------------------------------------------------
 DECLARE @locstartdate SMALLDATETIME,
         @locenddate SMALLDATETIME
 
-SET @locstartdate = @startdate
-SET @locenddate   = @enddate
+SET @locstartdate = @StartDate
+SET @locenddate   = @EndDate
 
 DECLARE @response_department_goal_department_translation TABLE
 (
@@ -751,6 +779,7 @@ ORDER BY REC_FY, all_goals.SERVICE_LINE, goal_EPIC_DEPARTMENT_ID, Domain_Goals
 	,surveys_ch_ip_sl.QUESTION_TEXT
 	,surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
 	,surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
+	,surveys_ch_ip_sl.EPIC_DEPARTMENT_NAME
 	,surveys_ch_ip_sl.SERVICE_LINE_ID
 	,surveys_ch_ip_sl.SERVICE_LINE
 	,surveys_ch_ip_sl.SUB_SERVICE_LINE
@@ -780,10 +809,12 @@ ORDER BY REC_FY, all_goals.SERVICE_LINE, goal_EPIC_DEPARTMENT_ID, Domain_Goals
 	,surveys_ch_ip_sl.TOP_BOX_RESPONSE
 	,surveys_ch_ip_sl.VAL_COUNT
 	,rec.quarter_name
+	,rec.month_num
 	,rec.month_short_name
+	,rec.year_num
 INTO #surveys_ch_ip2_sl
 FROM
-	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @startdate AND day_date <= @enddate) rec
+	(SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @StartDate AND day_date <= @EndDate) rec
 LEFT OUTER JOIN
 (
 SELECT surveys_ch_ip_sl.SURVEY_ID,
@@ -872,6 +903,7 @@ UNION ALL
 		,surveys_ch_ip_sl.QUESTION_TEXT
 		,surveys_ch_ip_sl.QUESTION_TEXT_ALIAS
 	    ,surveys_ch_ip_sl.EPIC_DEPARTMENT_ID
+		,surveys_ch_ip_sl.EPIC_DEPARTMENT_NAME
 	    ,surveys_ch_ip_sl.SERVICE_LINE_ID
 		,surveys_ch_ip_sl.SERVICE_LINE
 		,surveys_ch_ip_sl.SUB_SERVICE_LINE
@@ -902,13 +934,15 @@ UNION ALL
 		,surveys_ch_ip_sl.TOP_BOX_RESPONSE
 		,surveys_ch_ip_sl.VAL_COUNT
 		,rec.quarter_name
+		,rec.month_num
 		,rec.month_short_name
+		,rec.year_num
 	 FROM
 		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date >= @locstartdate AND day_date <= @locenddate) rec
 	 LEFT OUTER JOIN #surveys_ch_ip_sl surveys_ch_ip_sl
 	     ON rec.day_date = surveys_ch_ip_sl.RECDATE
 	 FULL OUTER JOIN
-		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date <= @enddate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
+		 (SELECT * FROM DS_HSDW_Prod.dbo.Dim_Date WHERE day_date <= @EndDate) dis -- Need to report by both the discharge date on the survey as well as the received date of the survey
 	     ON dis.day_date = surveys_ch_ip_sl.DISDATE
 	 LEFT OUTER JOIN
 		 (SELECT REC_FY
@@ -947,6 +981,7 @@ UNION ALL
 		END AS SERVICE_LINE
    ,SUB_SERVICE_LINE
    ,EPIC_DEPARTMENT_ID
+   ,EPIC_DEPARTMENT_NAME
    ,service_line_id
    ,[sk_Fact_Pt_Acct]
    ,[Rpt_Prd]
@@ -981,8 +1016,104 @@ UNION ALL
    ,[TOP_BOX_RESPONSE]
    ,[VAL_COUNT]
    ,[quarter_name]
+   ,month_num
    ,[month_short_name]
+   ,year_num
+  INTO #CHCAHPS_Unit
   FROM #surveys_ch_ip3_sl
+
+------------------------------------------------------------------------------------------
+--- GENERATE SUMMARY FOR TESTING
+
+SELECT resp.Event_Type,
+	   resp.Event_FY,
+	   resp.year_num,
+       resp.month_num,
+       resp.month_short_name,
+       resp.CLINIC,
+       resp.SERVICE_LINE,
+       resp.Domain_Goals,
+	   resp.QUESTION_TEXT_ALIAS,
+       resp.EPIC_DEPARTMENT_ID,
+       resp.epic_department_name,
+	   resp.GOAL,
+       SUM(resp.TOP_BOX) AS TOP_BOX,
+       SUM(resp.VAL_COUNT) AS VAL_COUNT,
+	   COUNT(DISTINCT resp.SURVEY_ID) AS SURVEY_ID_COUNT
+INTO #surveys_ch_ip_sl_sum
+FROM
+(
+--SELECT DISTINCT
+SELECT
+	Event_Type,
+	Event_FY,
+	year_num,
+	month_num,
+	month_short_name,
+    CLINIC,
+    SERVICE_LINE,
+    EPIC_DEPARTMENT_ID,
+    epic_department_name,
+	VALUE,
+	TOP_BOX,
+    VAL_COUNT,
+	DOMAIN,
+    Domain_Goals,
+	QUESTION_TEXT_ALIAS,
+	SURVEY_ID,
+	GOAL
+FROM #CHCAHPS_Unit
+WHERE
+(Domain_Goals IS NOT NULL
+AND Domain_Goals NOT IN
+(
+'Meals'
+,'Overall Assessment'
+,'Pediatric ICU/CCU'
+,'Personal Issues'
+))
+) resp
+GROUP BY 
+	resp.Event_Type,
+	resp.Event_FY,
+	resp.year_num,
+	resp.month_num,
+	resp.month_short_name,
+    resp.CLINIC,
+    resp.SERVICE_LINE,
+	resp.Domain_Goals,
+	resp.QUESTION_TEXT_ALIAS,
+    resp.EPIC_DEPARTMENT_ID,
+    resp.epic_department_name,
+	resp.GOAL
+
+SELECT Event_Type,
+       Event_FY,
+	   year_num AS Event_CY,
+       month_num AS [Month],
+       month_short_name AS Month_Name,
+       Service_Line,
+       EPIC_DEPARTMENT_ID AS DEPARTMENT_ID,
+       EPIC_DEPARTMENT_NAME AS DEPARTMENT_NAME,
+       CLINIC,
+       Domain_Goals,
+       QUESTION_TEXT_ALIAS,
+       TOP_BOX,
+       VAL_COUNT,
+       SURVEY_ID_COUNT AS N,
+       GOAL
+FROM #surveys_ch_ip_sl_sum
+ORDER BY Event_Type
+       , Event_FY
+	   , year_num
+       , month_num
+	   , month_short_name
+	   , Service_Line
+	   , EPIC_DEPARTMENT_ID
+	   , EPIC_DEPARTMENT_NAME
+	   , CLINIC
+	   , Domain_Goals
+	   , QUESTION_TEXT_ALIAS
 
 GO
 

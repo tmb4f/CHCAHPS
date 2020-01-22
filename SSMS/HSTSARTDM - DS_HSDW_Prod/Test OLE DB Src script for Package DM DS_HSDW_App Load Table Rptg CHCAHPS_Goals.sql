@@ -75,7 +75,8 @@ VALUES
 --);
 DECLARE @CHCAHPS_PX_Goal_Setting TABLE
 (
-    GOAL_YR INTEGER
+    SVC_CDE VARCHAR(2)
+  , GOAL_YR INTEGER
   , SERVICE_LINE VARCHAR(150)
   , Epic_Department_Id VARCHAR(8)
   , Epic_Department_Name VARCHAR(30)
@@ -87,13 +88,18 @@ DECLARE @CHCAHPS_PX_Goal_Setting TABLE
 );
 INSERT INTO @CHCAHPS_PX_Goal_Setting
 SELECT
-	[GOAL_YR]
+	 'PD' AS [SVC_CDE]
+	,Goal.[GOAL_YR]
 	,'Womens and Childrens' AS SERVICE_LINE
 	,Goal.Epic_Department_Id
 	,Goal.Epic_Department_Name
+  --  ,CASE
+	 --  WHEN Goal.[UNIT] = 'All PEDS Units' THEN 'All Units'
+	 --  ELSE TRIM(Goal.Epic_Department_Name) + ' [' + TRIM(Goal.Epic_Department_Id) + ']'
+	 --END AS UNIT
     ,CASE
 	   WHEN Goal.[UNIT] = 'All PEDS Units' THEN 'All Units'
-	   ELSE TRIM(Goal.Epic_Department_Name) + ' [' + TRIM(Goal.Epic_Department_Id) + ']'
+	   ELSE Goal.UNIT
 	 END AS UNIT
     --,COALESCE([@unit_translation].Unit, Goal.UNIT) AS Unit_Goals
     ,Goal.[DOMAIN]
@@ -116,23 +122,27 @@ OR Goal.UNIT IS NULL);
 
 DECLARE @CHCAHPS_PX_Goal_Setting_epic_id TABLE
 (
-    GOAL_YR INTEGER
+	SVC_CDE VARCHAR(2)
+  , GOAL_YR INTEGER
   , SERVICE_LINE VARCHAR(150)
   , UNIT VARCHAR(150)
   --, Unit_Goals VARCHAR(150)
   , DOMAIN VARCHAR(150)
   , Domain_Goals VARCHAR(150)
   , GOAL DECIMAL(4,3)
-  , [Epic DEPARTMENT_ID] VARCHAR(50)
+  --, [Epic DEPARTMENT_ID] VARCHAR(50)
+  , Epic_Department_Id VARCHAR(255)
+  , Epic_Department_Name VARCHAR(255)
   --, DEPARTMENT_ID NUMERIC(18,0)
   --, dep_sk_Dim_Clrt_DEPt INTEGER
-  , CLINIC VARCHAR(250)
+  --, CLINIC VARCHAR(250)
   --, INDEX IX_CHCAHPS_PX_Goal_Setting_epic_id NONCLUSTERED(GOAL_YR, Unit_Goals, Domain_Goals)
   , INDEX IX_CHCAHPS_PX_Goal_Setting_epic_id NONCLUSTERED(GOAL_YR, UNIT, Domain_Goals)
 );
 INSERT INTO @CHCAHPS_PX_Goal_Setting_epic_id
 SELECT
-     goals.GOAL_YR
+     goals.SVC_CDE
+	,goals.GOAL_YR
     ,goals.SERVICE_LINE
     ,goals.UNIT
     --,goals.Unit_Goals
@@ -140,13 +150,15 @@ SELECT
     ,goals.Domain_Goals
     ,goals.GOAL
 	--,bscm.[Epic DEPARTMENT_ID]
-	,goals.Epic_Department_Id AS [Epic DEPARTMENT_ID]
+	--,goals.Epic_Department_Id AS [Epic DEPARTMENT_ID]
+	,goals.Epic_Department_Id
+	,goals.Epic_Department_Name
 	--,dep.DEPARTMENT_ID
 	--,dep.sk_Dim_Clrt_DEPt AS dep_sk_Dim_Clrt_DEPt
 	--,CASE WHEN dept.Clrt_DEPt_Nme IS NOT NULL THEN dept.Clrt_DEPt_Nme + ' [' + CAST(dept.DEPARTMENT_ID AS VARCHAR(250)) + ']'
 	--      ELSE NULL
  --    END AS CLINIC
-	,UNIT AS CLINIC
+	--,UNIT AS CLINIC
 FROM @CHCAHPS_PX_Goal_Setting goals
 --LEFT OUTER JOIN (SELECT DISTINCT
 --					PressGaney_Name
@@ -173,9 +185,11 @@ ORDER BY goals.GOAL_YR, goals.UNIT, goals.Domain_Goals;
 DECLARE @RptgTbl TABLE
 (
     SVC_CDE CHAR(2)
-  , GOAL_YR INTEGER
+  , GOAL_FISCAL_YR INTEGER
   , SERVICE_LINE VARCHAR(150)
   , UNIT VARCHAR(150)
+  , EPIC_DEPARTMENT_ID VARCHAR(255)
+  , EPIC_DEPARTMENT_NAME VARCHAR(255)
   , DOMAIN VARCHAR(150)
   , GOAL DECIMAL(4,3)
   , Load_Dtm SMALLDATETIME
@@ -184,9 +198,11 @@ DECLARE @RptgTbl TABLE
 INSERT INTO @RptgTbl
 (
     SVC_CDE,
-    GOAL_YR,
+    GOAL_FISCAL_YR,
     SERVICE_LINE,
     UNIT,
+	EPIC_DEPARTMENT_ID,
+	EPIC_DEPARTMENT_NAME,
     DOMAIN,
     GOAL,
     Load_Dtm
@@ -195,6 +211,8 @@ SELECT all_goals.SVC_CDE
      , all_goals.GOAL_YR
 	 , all_goals.SERVICE_LINE
 	 , all_goals.UNIT
+	 , all_goals.Epic_Department_Id
+	 , all_goals.Epic_Department_Name
 	 , all_goals.DOMAIN
 	 , all_goals.GOAL
 	 , all_goals.Load_Dtm
@@ -316,24 +334,31 @@ FROM
 --AND goals.DOMAIN IS NOT NULL
 -- 2020
 SELECT DISTINCT
-    'PD' AS SVC_CDE
+    CAST(goals.SVC_CDE AS VARCHAR(2)) AS SVC_CDE
   , CAST(2020 AS INT) AS GOAL_YR
   , CAST(goals.SERVICE_LINE AS VARCHAR(150)) AS SERVICE_LINE
-  , CAST(goals.CLINIC AS VARCHAR(150)) AS UNIT
+  --, CAST(goals.CLINIC AS VARCHAR(150)) AS UNIT
+  , CAST(goals.UNIT AS VARCHAR(150)) AS UNIT
+  , CAST(goals.Epic_Department_Id AS VARCHAR(255)) AS Epic_Department_Id
+  , CAST(goals.Epic_Department_Name AS VARCHAR(255)) AS Epic_Department_Name
   , CAST(goals.Domain_Goals AS VARCHAR(150)) AS DOMAIN
   , CAST(goals.GOAL AS DECIMAL(4,3)) AS GOAL
   , CAST(GETDATE() AS SMALLDATETIME) AS Load_Dtm
 FROM @CHCAHPS_PX_Goal_Setting_epic_id goals
 WHERE goals.GOAL_YR = 2020
-AND ((goals.UNIT IS NOT NULL) AND (goals.UNIT <> 'All Units'))
+AND ((goals.UNIT IS NULL) OR (goals.UNIT IS NOT NULL AND goals.UNIT <> 'All Units'))
 AND goals.DOMAIN IS NOT NULL
 AND goals.GOAL IS NOT NULL
 UNION ALL
 SELECT DISTINCT
-    'PD' AS SVC_CDE
+    CAST(goals.SVC_CDE AS VARCHAR(2)) AS SVC_CDE
   , CAST(2020 AS INT) AS GOAL_YR
   , CAST(goals.SERVICE_LINE AS VARCHAR(150)) AS SERVICE_LINE
-  , CAST('All Units' AS VARCHAR(150)) AS UNIT
+  --, CAST('All Units' AS VARCHAR(150)) AS UNIT
+  --, CAST(goals.UNIT AS VARCHAR(150)) AS UNIT
+  , CAST(NULL AS VARCHAR(150)) AS UNIT
+  , CAST('All Units' AS VARCHAR(255)) AS Epic_Department_Id
+  , CAST(NULL AS VARCHAR(255)) AS Epic_Department_Name
   , CAST(goals.Domain_Goals AS VARCHAR(150)) AS DOMAIN
   , CAST(goals.GOAL AS DECIMAL(4,3)) AS GOAL
   , CAST(GETDATE() AS SMALLDATETIME) AS Load_Dtm
@@ -342,10 +367,14 @@ WHERE goals.UNIT = 'All Units' AND goals.GOAL_YR = 2020
 AND goals.DOMAIN IS NOT NULL
 UNION ALL
 SELECT DISTINCT
-    'PD' AS SVC_CDE
+    CAST(goals.SVC_CDE AS VARCHAR(2)) AS SVC_CDE
   , CAST(2020 AS INT) AS GOAL_YR
   , CAST('All Service Lines' AS VARCHAR(150)) AS SERVICE_LINE
-  , CAST('All Units' AS VARCHAR(150)) AS UNIT
+  --, CAST('All Units' AS VARCHAR(150)) AS UNIT
+  --, CAST(goals.UNIT AS VARCHAR(150)) AS UNIT
+  , CAST(NULL AS VARCHAR(150)) AS UNIT
+  , CAST('All Units' AS VARCHAR(255)) AS Epic_Department_Id
+  , CAST(NULL AS VARCHAR(255)) AS Epic_Department_Name
   , CAST(goals.Domain_Goals AS VARCHAR(150)) AS DOMAIN
   , CAST(goals.GOAL AS DECIMAL(4,3)) AS GOAL
   , CAST(GETDATE() AS SMALLDATETIME) AS Load_Dtm
@@ -356,9 +385,9 @@ AND goals.DOMAIN IS NOT NULL
 
 SELECT *
 FROM @RptgTbl
-ORDER BY GOAL_YR
+ORDER BY GOAL_FISCAL_YR
        , SERVICE_LINE
-       , UNIT
+       , EPIC_DEPARTMENT_ID
 	   , DOMAIN
 
 --SELECT DISTINCT
