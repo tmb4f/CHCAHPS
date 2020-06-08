@@ -8,55 +8,59 @@ SET QUOTED_IDENTIFIER OFF
 GO
 
 -- =====================================================================================
--- Create procedure uspSrc_Dash_PatExp_Response_Summary
+-- Create procedure uspSrc_Dash_PatExp_CHCAHPS_Response_Summary_Test
 -- =====================================================================================
 
---CREATE PROCEDURE [Rptg].[uspSrc_Dash_PatExp_Response_Summary]
---AS
+CREATE PROCEDURE [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Response_Summary_Test]
+AS
 /**********************************************************************************************************************
 WHAT: Stored procedure for Patient Experience Dashboard - Child HCAHPS (Inpatient)
       Distinct list of received survey units and service lines by domain and discharge and received date
 WHO : Tom Burgan
-WHEN: 05/03/2019
+WHEN: 04/13/2020
 WHY : Produce surveys results for patient experience dashboard
 -----------------------------------------------------------------------------------------------------------------------
 INFO: 
       INPUTS:	DS_HSDW_Prod.dbo.Fact_PressGaney_Responses
-	            DS_HSDW_Stage.PressGaney.PG_Responses_xmlrip
 				DS_HSDW_Prod.Rptg.vwFact_Pt_Enc_Clrt
-				DS_HSDW_Prod.Rptg.Balanced_Scorecard_Mapping
+				DS_HSDW_Prod.dbo.Dim_Date
 				DS_HSDW_Prod.Rptg.vwDim_Clrt_DEPt
 				DS_HSDW_App.Rptg.PG_Extnd_Attr
-				DS_HSDW_Prod.dbo.Dim_Date
-				DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc
                   
-      OUTPUTS: DS_HSDW_App.Rptg.uspSrc_Dash_PatExp_Response_Summary
+      OUTPUTS: DS_HSDW_App.Rptg.uspSrc_Dash_PatExp_CHCAHPS_Response_Summary_Test
    
 ------------------------------------------------------------------------------------------------------------------------
-MODS: 	05/03/2019 - Created procedure
-		09/17/2019 - Edit logic that sets PG_DESG value
+MODS: 	04/13/2020 - Created procedure
 ***********************************************************************************************************************/
 
 SET NOCOUNT ON
 
---EXEC dbo.usp_TruncateTable @schema = 'Rptg',@Table = 'CHCAHPS_Response_Summary'
+EXEC dbo.usp_TruncateTable @schema = 'Rptg',@Table = 'CHCAHPS_Response_Summary_Test'
+
+DECLARE @epic_department_group TABLE
+(
+    Epic_Department_Id NVARCHAR(500) NULL -- Epic department id value in response record
+  , Epic_Department_Group_Id NVARCHAR(500) NULL -- Department group id value for Epic department id values in response records
+  , Epic_Department_Group_Name NVARCHAR(500) NULL -- Department group name value for Epic department id values in response records
+);
+INSERT INTO @epic_department_group
+(
+    Epic_Department_Id,
+    Epic_Department_Group_Id,
+    Epic_Department_Group_Name
+)
+VALUES
+('10243064','1','7 CENTRAL'),
+('10243067','1','7 CENTRAL'),
+('10243108','1','7 CENTRAL'),
+('10243093','2','7 NORTH'),
+('10243100','2','7 NORTH'),
+('10243103','2','7 NORTH'),
+('10243065','3','7 WEST'),
+('10243043','4','PICU')
+;
 
 ---------------------------------------------------
-
-IF OBJECT_ID('tempdb..#chcahps_resp ') IS NOT NULL
-DROP TABLE #chcahps_resp
-
-IF OBJECT_ID('tempdb..#chcahps_resp_dep ') IS NOT NULL
-DROP TABLE #chcahps_resp_dep
-
-IF OBJECT_ID('tempdb..#chcahps_resp_unit ') IS NOT NULL
-DROP TABLE #chcahps_resp_unit
-
-IF OBJECT_ID('tempdb..#chcahps_resp_unit_der ') IS NOT NULL
-DROP TABLE #chcahps_resp_unit_der
-
-IF OBJECT_ID('tempdb..#chcahps_resp_epic_id ') IS NOT NULL
-DROP TABLE #chcahps_resp_epic_id
 
 SELECT
 	 resp.SURVEY_ID
@@ -71,28 +75,9 @@ SELECT
 	,resp.sk_Dim_Clrt_DEPt
 	,resp.sk_Dim_Physcn
 	,resp.RESP_CAT
-	--,SUBSTRING(rip.VALUE,1,2) AS PG_DESG
 	,SUBSTRING(resp.Survey_Designator,1,2) AS PG_DESG
 INTO #chcahps_resp
 FROM DS_HSDW_Prod.Rptg.vwFact_PressGaney_Responses resp
---LEFT OUTER JOIN (
---SELECT seq.SURVEY_ID
---      ,seq.VALUE
---FROM (
---SELECT xmlrip.SURVEY_ID
---      ,xmlrip.VALUE
---	  ,xmlrip.Load_Dtm
---      ,ROW_NUMBER() OVER (PARTITION BY xmlrip.SURVEY_ID, xmlrip.VALUE ORDER BY xmlrip.Load_Dtm DESC) AS Seq
---FROM (
---SELECT DISTINCT
---       [SURVEY_ID]
---      ,[VALUE]
---      ,[Load_Dtm]
---  FROM [DS_HSDW_Stage].[PressGaney].[PG_Responses_xmlrip]
---  WHERE VARNAME = 'ITSERVTY') xmlrip
---) seq
---WHERE seq.Seq = 1) rip
---ON resp.SURVEY_ID = rip.SURVEY_ID
 WHERE sk_Dim_PG_Question IN
 	(
 		'2092', -- AGE
@@ -225,35 +210,6 @@ ORDER BY UNIT
   -- Create index for temp table #chcahps_resp_unit
   --CREATE CLUSTERED INDEX IX_chcahps_resp_unit ON #chcahps_resp_unit ([UNIT])
 
---SELECT
---     resp.SURVEY_ID
---	,resp.sk_Dim_PG_Question
---	,resp.sk_Fact_Pt_Acct
---	,resp.sk_Dim_Pt
---	,resp.Svc_Cde
---	,resp.RECDATE
---	,resp.DISDATE
---	,resp.FY
---	,resp.VALUE
---	,resp.sk_Dim_Clrt_DEPt
---	,resp.sk_Dim_Physcn
---	,resp.RESP_CAT
---	,resp.enc_sk_Dim_Clrt_DEPt
---    ,resp.UNIT
---    ,CASE resp.UNIT
---	   WHEN '7CENTRAL (Closed)' THEN '7CENTRAL'
---	   WHEN '7N PICU' THEN 'PIC N'
---	   WHEN '7W ACUTE' THEN '7WEST'
---	   WHEN 'PICU (Closed)' THEN 'PIC N'
---	   ELSE resp.UNIT
---	 END AS der_UNIT
---INTO #chcahps_resp_unit_der
---FROM #chcahps_resp_unit resp
---ORDER BY der_UNIT
-
-  -- Create index for temp table #chcahps_resp_unit_der
-  --CREATE CLUSTERED INDEX IX_chcahps_resp_unit_der ON #chcahps_resp_unit_der ([der_UNIT])
-
 SELECT
      resp.SURVEY_ID
 	,resp.sk_Dim_PG_Question
@@ -267,36 +223,19 @@ SELECT
 	,resp.sk_Dim_Clrt_DEPt
 	,resp.sk_Dim_Physcn
 	,resp.RESP_CAT
-	--,resp.enc_sk_Dim_Clrt_DEPt
     ,resp.UNIT
-    --,resp.der_UNIT
-	--,bscm.[Epic DEPARTMENT_ID]
-	--,dep.DEPARTMENT_ID
 	,CAST(dep.DEPARTMENT_ID AS VARCHAR(255)) AS DEPARTMENT_ID
 	,dep.Clrt_DEPt_Nme
-	--,dep.sk_Dim_Clrt_DEPt AS dep_sk_Dim_Clrt_DEPt
 	,extd.DOMAIN
 	,ddte.Fyear_num AS REC_FY
 	,ddte.quarter_name
 	,ddte.month_short_name
+    ,COALESCE(dgr.Epic_Department_Group_Id,'0') AS Epic_Department_Group_Id
+    ,COALESCE(dgr.Epic_Department_Group_Name,'Other') AS Epic_Department_Group_Name
 INTO #chcahps_resp_epic_id
 FROM #chcahps_resp_unit resp
 INNER JOIN DS_HSDW_Prod.Rptg.vwDim_Date ddte
 	ON ddte.day_date = resp.RECDATE
---LEFT OUTER JOIN (SELECT DISTINCT
---					PressGaney_Name
---				   ,[Epic DEPARTMENT_ID]
---                 FROM DS_HSDW_Prod.Rptg.vwBalanced_ScoreCard_Mapping
---				 WHERE PressGaney_Name IS NOT NULL AND LEN(PressGaney_Name) > 0) bscm
---    ON bscm.PressGaney_Name = resp.der_UNIT
---LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwDim_Clrt_DEPt dep
---    ON dep.DEPARTMENT_ID =
---		    CASE resp.UNIT
---		      WHEN '8TMP' THEN 10243067
---		      WHEN 'PIMU' THEN 10243108
---			  WHEN '7N ACUTE' THEN 10243103
---		      ELSE CAST(bscm.[Epic DEPARTMENT_ID] AS NUMERIC(18,0))
---		    END
 LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwDim_Clrt_DEPt dep
     ON dep.sk_Dim_Clrt_DEPt = resp.sk_Dim_Clrt_DEPt
 LEFT OUTER JOIN
@@ -304,24 +243,17 @@ LEFT OUTER JOIN
 		SELECT DISTINCT sk_Dim_PG_Question, DOMAIN, QUESTION_TEXT, QUESTION_TEXT_ALIAS FROM DS_HSDW_App.Rptg.PG_Extnd_Attr
 	) extd
 		ON resp.sk_Dim_PG_Question = extd.sk_Dim_PG_Question
+LEFT OUTER JOIN @epic_department_group dgr
+    ON CAST(dgr.Epic_Department_Id AS NUMERIC(18,0)) = dep.DEPARTMENT_ID
 WHERE extd.DOMAIN IS NOT NULL
 ORDER BY resp.SURVEY_ID
 
---SELECT DISTINCT
---	sk_Dim_Clrt_DEPt
---  , DEPARTMENT_ID
---  , Clrt_DEPt_Nme
---  , DOMAIN
---FROM #chcahps_resp_epic_id
---ORDER BY DEPARTMENT_ID
---       , DOMAIN
-
 ----------------------------------------------------------------------------------------------------
 
---INSERT INTO Rptg.CHCAHPS_Response_Summary (SERVICE_LINE, CLINIC, EPIC_DEPARTMENT_ID, DOMAIN, sk_Dim_PG_Question, Rpt_Prd,
---                                           Event_Date, Event_Date_Disch, quarter_name, month_short_name
---                                          )
-SELECT locations.SERVICE_LINE, locations.CLINIC, locations.EPIC_DEPARTMENT_ID, locations.DOMAIN, locations.sk_Dim_PG_Question, locations.Rpt_Prd, locations.Event_Date
+INSERT INTO Rptg.CHCAHPS_Response_Summary_Test (SERVICE_LINE, Epic_Department_Group_Name, CLINIC, EPIC_DEPARTMENT_ID, DOMAIN, sk_Dim_PG_Question, Rpt_Prd,
+                                                Event_Date, Event_Date_Disch, quarter_name, month_short_name
+                                               )
+SELECT locations.SERVICE_LINE, locations.Epic_Department_Group_Name, locations.CLINIC, locations.EPIC_DEPARTMENT_ID, locations.DOMAIN, locations.sk_Dim_PG_Question, locations.Rpt_Prd, locations.Event_Date
       ,locations.Event_Date_Disch, locations.quarter_name, locations.month_short_name
 FROM
 (
@@ -332,6 +264,7 @@ FROM
 			        ELSE responses.SERVICE_LINE
 			   END
 		END AS SERVICE_LINE
+	   ,responses.Epic_Department_Group_Name
 	   ,responses.CLINIC
 	   ,responses.EPIC_DEPARTMENT_ID
 	   ,responses.DOMAIN
@@ -358,15 +291,10 @@ FROM
 		   ,RespUnit.Event_Date_Disch
 		   ,RespUnit.quarter_name
 		   ,RespUnit.month_short_name
+		   ,RespUnit.Epic_Department_Group_Name
 	    FROM
 		(
 		    SELECT DISTINCT
-		     --   CASE
-		     --     WHEN sk_Dim_Clrt_DEPt IS NOT NULL AND sk_Dim_Clrt_DEPt > 0 THEN sk_Dim_Clrt_DEPt
-			    --  WHEN der_UNIT IS NULL THEN enc_sk_Dim_Clrt_DEPt
-			    --  WHEN der_UNIT <> 'RN (Closed)' THEN dep_sk_Dim_Clrt_DEPt
-			    --  ELSE enc_sk_Dim_Clrt_DEPt
-			    --END AS sk_Dim_Clrt_DEPt
 		        DEPARTMENT_ID
 			   ,Clrt_DEPt_Nme
 			   ,UNIT
@@ -375,22 +303,15 @@ FROM
 		       ,LEFT(DATENAME(MM, RECDATE), 3) + ' ' + CAST(DAY(RECDATE) AS VARCHAR(2)) AS Rpt_Prd
 			   ,RECDATE AS Event_Date
 			   ,DISDATE AS Event_Date_Disch
-		       --,rec.quarter_name
-		       --,rec.month_short_name
 		       ,resp.quarter_name
 		       ,resp.month_short_name
+			   ,resp.Epic_Department_Group_Name
 			FROM #chcahps_resp_epic_id resp
-			--LEFT OUTER JOIN DS_HSDW_Prod.dbo.Dim_Date rec
-			--    ON rec.day_date = RECDATE
 		) AS RespUnit
-        --LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwDim_Clrt_DEPt dept
-	       -- ON dept.sk_Dim_Clrt_DEPt = RespUnit.sk_Dim_Clrt_DEPt
-        --LEFT OUTER JOIN DS_HSDW_Prod.Rptg.vwRef_MDM_Location_Master_EpicSvc AS loc_master
-	       -- ON dept.DEPARTMENT_ID = loc_master.EPIC_DEPARTMENT_ID
 	) responses
 ) locations
-ORDER BY locations.SERVICE_LINE, locations.CLINIC, locations.EPIC_DEPARTMENT_ID, locations.DOMAIN, locations.sk_Dim_PG_Question, locations.Rpt_Prd, locations.Event_Date
 
 GO
 
-
+GRANT EXECUTE, VIEW DEFINITION ON [Rptg].[uspSrc_Dash_PatExp_CHCAHPS_Response_Summary_Test] to [HSCDOM\Decision Support]
+GO
